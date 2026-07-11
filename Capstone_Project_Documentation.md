@@ -152,7 +152,7 @@ This enables fast lookups such as:
 
 ---
 
-### 4.5 Duplicate / Similar Scam Detection (Capstone Upgrade A)
+### 4.5 Duplicate / Similar Scam Detection
 Purpose: prevent repeated scams from appearing as unrelated reports.
 
 **Duplicate detection methods**
@@ -168,7 +168,7 @@ Moderator can merge duplicates into a canonical report:
 
 ---
 
-### 4.6 Retrieval-Based Evidence in Results (Capstone Upgrade C)
+### 4.6 Retrieval-Based Evidence in Results
 Instead of only showing a generic output like “High Risk”, the analyzer returns evidence-backed context such as:
 - “Matched 3 similar reports”
 - “Same phone number seen 8 times”
@@ -211,7 +211,7 @@ Admin:
 
 ---
 
-### 4.9 Better Analytics Dashboard (Capstone Upgrade D)
+### 4.9 Better Analytics Dashboard 
 Use charting libraries such as **Chart.js** or **Recharts** for interpretable monitoring.
 
 **Core analytics examples**
