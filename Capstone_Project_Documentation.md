@@ -131,7 +131,7 @@ Reputation signals:
 
 ---
 
-### 4.4 Entity Reputation Database (Capstone Upgrade B)
+### 4.4 Entity Reputation Database
 Maintain dedicated reputation views/tables for high-value entities and update them with each new report and moderation decision.
 
 **Examples**
