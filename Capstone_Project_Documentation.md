@@ -324,4 +324,30 @@ Use charting libraries such as **Chart.js** or **Recharts** for interpretable mo
 ---
 
 ## 11. Summary
-Job Scam Radar is a full-stack platform that combines explainable rule-based detection, simple ML-based probability scoring, retrieval-backed evidence, community reporting with evidence, duplicate detection using entity and text similarity, entity reputation tracking, and alert subscriptions to proactively warn students about repeating job scams. It is not merely a classifier; it is a complete workflow system with moderation, reputation signals, search, analytics, and evaluation.
+Job Scam Radar is a full-stack platform that combines explainable rule-based detection, simple ML-based probability scoring, retrieval-backed evidence, community reporting with evidence, duplicat[...] 
+
+---
+
+## What makes this project different
+Job Scam Radar focuses on transparency, community-driven evidence, and practical safety—not just a black-box label. Key differentiators:
+
+- Explainability-first hybrid scoring: rules are first-class citizens; every flag links to the exact text span and the human-readable reason. ML augments rules rather than replacing them, so outputs are interpretable and tunable.
+
+- Retrieval-grounded evidence: results include matches from the community reports database ("seen N times", links to similar reports) so users can verify context and moderators can triage faster.
+
+- Community-driven entity reputation: reputation aggregates (phone/email/domain) update with moderation actions, so collective reporting improves future detection and reduces repeated false positives.
+
+- Duplicate-aware design: entity matching + text-similarity prevents the same scam from appearing as unrelated reports and lets moderators consolidate evidence quickly.
+
+- Hiring Intent (Ghost-job) Score: beyond scam detection, the platform estimates hiring legitimacy using public proxy signals (domain/careers page presence, corporate email use, OpenCorporates registration, domain age, GitHub presence). This helps detect "ghost jobs" and data-harvesting listings and is returned with provenance and confidence.
+
+- Safe counter-scam guidance: the app provides safe, non-confrontational verification templates users can send to recruiters (request corporate email, official offer PDF, schedule video calls) and step-by-step guidance on what not to share. We explicitly avoid active entrapment tactics.
+
+- Privacy-first & low-cost stack: designed to run with open-source tools and free-tier hosting; avoids paid data sources and LLMs, making it accessible for student projects and reproducible research.
+
+- Educational & auditable: the rules, weights, and dataset are stored in the repo so students and auditors can inspect, reproduce, and improve the system.
+
+These differences make Job Scam Radar both practical for immediate use (rule-based detection + evidence) and extensible for research (ML fusion, hiring-intent heuristics, reputation aggregation).
+
+---
+
