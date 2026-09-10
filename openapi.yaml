@@ -1,0 +1,95 @@
+openapi: 3.0.0
+info:
+  title: Job Scam Radar API (MVP + Hiring Intent)
+  version: 0.1.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /analyze:
+    post:
+      summary: Analyze a job message and return rule+ML scores, hiring intent, explanations, and next-step templates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: ["text"]
+              properties:
+                text:
+                  type: string
+                  description: The job/internship message or post body to analyze
+                platform:
+                  type: string
+                  description: Optional source platform (whatsapp, telegram, instagram, email, linkedin)
+                requester_id:
+                  type: string
+                  description: Optional user id for personalization (later)
+                save_report:
+                  type: boolean
+                  description: Optional. If true, store an anonymous report for labeling/analytics.
+                  default: true
+      responses:
+        '200':
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rule_score: { type: integer, description: '0-100 rule engine score' }
+                  ml_probability: { type: number, format: float, nullable: true, description: 'probability of scam (0-1) or null if model missing' }
+                  final_score: { type: number, description: 'fused score 0-100' }
+                  risk_level: { type: string, enum: [Low, Medium, High] }
+                  confidence: { type: integer, description: '0-100 system confidence' }
+                  reasons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rule_id: { type: string }
+                        description: { type: string }
+                        span: { type: string }
+                        weight: { type: number }
+                  highlighted_spans:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start: { type: integer }
+                        end: { type: integer }
+                        text: { type: string }
+                  hiring_intent_score:
+                    type: integer
+                    description: '0-100 Hiring Intent Score (higher == more likely a genuine hiring intent)'
+                  hiring_intent_reasons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        signal: { type: string }
+                        value: { type: string }
+                        score: { type: number }
+                        confidence: { type: integer }
+                  suggested_templates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        tone: { type: string, enum: [polite, firm, verification] }
+                        template: { type: string }
+
+components:
+  x-defaults:
+    fusion_weights:
+      rule: 0.4
+      ml: 0.6
+    confidence_alphas:
+      rule: 0.5
+      ml: 0.4
+      retrieval: 0.1
+    note: |
+      final_score = rule*0.4 + ml*0.6
+      confidence = weighted combination of rule certainty, model certainty, and retrieval strength
