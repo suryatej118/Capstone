@@ -341,7 +341,7 @@ Job Scam Radar focuses on transparency, community-driven evidence, and practical
 
 - Hiring Intent (Ghost-job) Score: beyond scam detection, the platform estimates hiring legitimacy using public proxy signals (domain/careers page presence, corporate email use, OpenCorporates registration, domain age, GitHub presence). This helps detect "ghost jobs" and data-harvesting listings and is returned with provenance and confidence.
 
-- ### Hiring Intent Scoring Formula
+- Hiring Intent Scoring Formula
 The `hiring_intent_score` is computed using deterministic signal subscores for corporate domain presence, careers page presence, recruiter email, OpenCorporates match, active job postings, GitHub activity, domain age, and hiring-related web search presence. The sum of all positive signal weights is 100. Severe fraud signals apply a fixed -20 penalty. The final score is calculated as `clamp(sum_positive_subscores - negative_penalties, 0, 100)`. Each signal also returns its observed value, score, and confidence in the API response. The weights are kept as explicit constants so they remain reproducible and can be deliberately tuned later using labeled evaluation data.
 
 - Safe counter-scam guidance: the app provides safe, non-confrontational verification templates users can send to recruiters (request corporate email, official offer PDF, schedule video calls) and step-by-step guidance on what not to share. We explicitly avoid active entrapment tactics.
