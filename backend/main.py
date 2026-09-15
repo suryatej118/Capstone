@@ -1,4 +1,6 @@
 from typing import Optional
+import re
+from backend.analyzer.hiring_intent import compute_hiring_intent
 from backend.analyzer.scoring import calculate_final_score, get_risk_level
 from backend.ml.predict import predict_scam_probability
 from fastapi import FastAPI
@@ -90,6 +92,47 @@ def analyze(request: AnalyzeRequest):
         if rule.start >= 0 and rule.end >= 0
     ]
 
+    # 7. Build a minimal signals dictionary for Hiring Intent.
+    # Full enrichment will populate additional signals in production.
+    signals = {}
+
+    # Best-effort recruiter email / company-domain extraction.
+    recruiter_match = re.search(
+        r"[\w\.-]+@([\w\.-]+\.[a-z]{2,})",
+        request.text,
+        re.I,
+    )
+
+    corp_domain = None
+
+    if recruiter_match:
+        signals["recruiter_email"] = recruiter_match.group(0)
+        corp_domain = recruiter_match.group(1).lower()
+
+    else:
+        # Fallback: look for a domain in a URL.
+        domain_match = re.search(
+            r"(?:https?://)?(?:www\.)?([\w\.-]+\.[a-z]{2,})",
+            request.text,
+            re.I,
+        )
+
+        if domain_match:
+            corp_domain = domain_match.group(1).lower()
+
+    if corp_domain:
+        signals["company_domain"] = corp_domain
+
+    # OpenCorporates enrichment is not implemented yet.
+    # Mark it as pending rather than treating it as a failure.
+    signals.setdefault("opencorporates_match", "pending")
+
+    # Calculate Hiring Intent Score.
+    hiring_score, hiring_reasons = compute_hiring_intent(
+        request.text,
+        signals,
+    )
+
     return AnalyzeResponse(
         rule_score=rule_score,
         ml_probability=ml_probability,
@@ -98,7 +141,7 @@ def analyze(request: AnalyzeRequest):
         confidence=0,
         reasons=reasons,
         highlighted_spans=highlighted_spans,
-        hiring_intent_score=0,
-        hiring_intent_reasons=[],
+        hiring_intent_score=hiring_score,
+        hiring_intent_reasons=hiring_reasons,
         suggested_templates=[],
     )
