@@ -56,7 +56,8 @@ R03_PATTERN = (
     r"("
     r"\b[0-9]{2,4}(\.[0-9]{1,2})?\s?(INR|Rs|₹)\b"
     r"|"
-    r"\b[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{3,}\b"
+    r"\b(?:pay|payment|send|transfer|upi)\b.{0,80}"
+    r"\b[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}\b"
     r")"
 )
 

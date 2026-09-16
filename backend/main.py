@@ -3,6 +3,7 @@ import re
 from backend.analyzer.hiring_intent import compute_hiring_intent
 from backend.analyzer.scoring import calculate_final_score, get_risk_level
 from backend.ml.predict import predict_scam_probability
+from backend.enrichment.domain import extract_emails, extract_domains
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
@@ -96,32 +97,15 @@ def analyze(request: AnalyzeRequest):
     # Full enrichment will populate additional signals in production.
     signals = {}
 
-    # Best-effort recruiter email / company-domain extraction.
-    recruiter_match = re.search(
-        r"[\w\.-]+@([\w\.-]+\.[a-z]{2,})",
-        request.text,
-        re.I,
-    )
+    # Extract recruiter email and normalized company domain.
+    emails = extract_emails(request.text)
+    domains = extract_domains(request.text)
 
-    corp_domain = None
+    if emails:
+        signals["recruiter_email"] = emails[0]
 
-    if recruiter_match:
-        signals["recruiter_email"] = recruiter_match.group(0)
-        corp_domain = recruiter_match.group(1).lower()
-
-    else:
-        # Fallback: look for a domain in a URL.
-        domain_match = re.search(
-            r"(?:https?://)?(?:www\.)?([\w\.-]+\.[a-z]{2,})",
-            request.text,
-            re.I,
-        )
-
-        if domain_match:
-            corp_domain = domain_match.group(1).lower()
-
-    if corp_domain:
-        signals["company_domain"] = corp_domain
+    if domains:
+        signals["company_domain"] = domains[0]
 
     # OpenCorporates enrichment is not implemented yet.
     # Mark it as pending rather than treating it as a failure.
