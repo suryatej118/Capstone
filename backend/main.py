@@ -4,6 +4,8 @@ from backend.analyzer.hiring_intent import compute_hiring_intent
 from backend.analyzer.scoring import calculate_final_score, get_risk_level
 from backend.ml.predict import predict_scam_probability
 from backend.enrichment.domain import extract_emails, extract_domains
+from backend.enrichment.company import extract_company_name
+from backend.enrichment.opencorporates import match_company_name
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
@@ -54,6 +56,7 @@ def health_check():
     return {"status": "ok"}
 
 
+
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(request: AnalyzeRequest):
     # 1. Run the rule engine
@@ -70,6 +73,7 @@ def analyze(request: AnalyzeRequest):
 
     # 4. Convert final score into risk level
     risk_level = get_risk_level(final_score)
+
 
     # 5. Build API reasons
     reasons = [
@@ -97,9 +101,9 @@ def analyze(request: AnalyzeRequest):
     # Full enrichment will populate additional signals in production.
     signals = {}
 
-    # Extract recruiter email and normalized company domain.
     emails = extract_emails(request.text)
     domains = extract_domains(request.text)
+    company_name = extract_company_name(request.text)
 
     if emails:
         signals["recruiter_email"] = emails[0]
@@ -107,11 +111,21 @@ def analyze(request: AnalyzeRequest):
     if domains:
         signals["company_domain"] = domains[0]
 
-    # OpenCorporates enrichment is not implemented yet.
-    # Mark it as pending rather than treating it as a failure.
-    signals.setdefault("opencorporates_match", "pending")
+    if company_name:
+        signals["company_name"] = company_name
 
-    # Calculate Hiring Intent Score.
+        try:
+            oc_result = match_company_name(company_name)
+
+            signals["opencorporates_match"] = oc_result["matched"]
+
+        except Exception:
+            # OpenCorporates is an external service.
+            # Its failure should not make the entire analysis fail.
+            signals["opencorporates_match"] = "pending"
+    else:
+        signals["opencorporates_match"] = "pending"
+
     hiring_score, hiring_reasons = compute_hiring_intent(
         request.text,
         signals,
