@@ -5,6 +5,8 @@ from backend.analyzer.scoring import calculate_final_score, get_risk_level
 from backend.ml.predict import predict_scam_probability
 from backend.enrichment.domain import extract_emails, extract_domains
 from backend.enrichment.company import extract_company_name
+from backend.enrichment.careers import detect_careers_page
+from backend.enrichment.job_postings import get_active_job_postings
 from backend.enrichment.opencorporates import match_company_name
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -104,6 +106,19 @@ def analyze(request: AnalyzeRequest):
     emails = extract_emails(request.text)
     domains = extract_domains(request.text)
     company_name = extract_company_name(request.text)
+
+    careers_result = detect_careers_page(
+        request.text,
+        domains[0] if domains else None,
+    )
+
+    signals["careers_page_present"] = careers_result["present"]
+
+    job_postings_result = get_active_job_postings(
+        careers_result["url"],
+    )
+
+    signals["active_job_postings_count"] = job_postings_result["count"]
 
     if emails:
         signals["recruiter_email"] = emails[0]
