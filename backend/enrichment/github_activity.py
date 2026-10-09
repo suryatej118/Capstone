@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
+
 import requests
 from dotenv import load_dotenv
 
@@ -64,6 +65,7 @@ def extract_github_org(text: str) -> str | None:
 
     return None
 
+
 def _get_headers() -> dict:
     """
     Return GitHub API headers.
@@ -86,7 +88,9 @@ def _get_headers() -> dict:
 
 def _get_organization(org_name: str) -> dict | None:
     """
-    Retrieve a GitHub organization if it exists.
+    Retrieve a GitHub organization if the API request succeeds.
+
+    Returns None if the organization cannot be retrieved.
     """
 
     if not org_name:
@@ -101,19 +105,30 @@ def _get_organization(org_name: str) -> dict | None:
             timeout=REQUEST_TIMEOUT,
         )
 
-    except requests.RequestException:
+        if response.status_code != 200:
+            return None
+
+        organization = response.json()
+
+    except (requests.RequestException, ValueError):
         return None
 
-    if response.status_code != 200:
+    if not isinstance(organization, dict):
         return None
 
-    return response.json()
+    return organization
 
 
-def _get_recent_public_activity(org_name: str) -> bool:
+def _get_recent_public_activity(
+    org_name: str,
+) -> bool | None:
     """
-    Determine whether the organization has public activity
-    within the last 180 days.
+    Check for public organization activity within the last 180 days.
+
+    Returns:
+        True: Recent public activity was found.
+        False: A valid API response contained no recent activity.
+        None: The activity check could not be completed reliably.
     """
 
     url = (
@@ -130,24 +145,30 @@ def _get_recent_public_activity(org_name: str) -> bool:
         )
 
     except requests.RequestException:
-        return False
+        return None
 
     if response.status_code != 200:
-        return False
+        return None
 
-    events = response.json()
+    try:
+        events = response.json()
+    except ValueError:
+        return None
 
     if not isinstance(events, list):
-        return False
+        return None
 
     cutoff = datetime.now(timezone.utc) - timedelta(
         days=RECENT_ACTIVITY_DAYS
     )
 
     for event in events:
+        if not isinstance(event, dict):
+            continue
+
         created_at = event.get("created_at")
 
-        if not created_at:
+        if not isinstance(created_at, str) or not created_at:
             continue
 
         try:
@@ -155,7 +176,17 @@ def _get_recent_public_activity(org_name: str) -> bool:
                 created_at.replace("Z", "+00:00")
             )
 
-        except ValueError:
+            # Treat timestamps without timezone information as UTC.
+            if event_time.tzinfo is None:
+                event_time = event_time.replace(
+                    tzinfo=timezone.utc
+                )
+            else:
+                event_time = event_time.astimezone(
+                    timezone.utc
+                )
+
+        except (ValueError, TypeError):
             continue
 
         if event_time >= cutoff:
@@ -190,6 +221,9 @@ def get_github_activity(
     Collect raw GitHub organization activity signals.
 
     Scoring is handled by hiring_intent.py.
+
+    A failed activity check is represented by None rather
+    than False, so API failures aren't treated as inactivity.
     """
 
     if not org_name:
@@ -200,7 +234,7 @@ def get_github_activity(
     if organization is None:
         return {
             "exists": False,
-            "recent_activity": False,
+            "recent_activity": None,
             "website": None,
         }
 

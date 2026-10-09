@@ -1,6 +1,9 @@
 from unittest.mock import Mock, patch
 
+import requests
+
 from backend.enrichment.github_activity import (
+    _get_recent_public_activity,
     _website_matches_domain,
     extract_github_org,
     get_github_activity,
@@ -60,15 +63,13 @@ def test_github_organization_exists_without_recent_activity():
         "blog": "https://example.com",
     }
 
-    activity_response = []
-
     mock_org_response = Mock()
     mock_org_response.status_code = 200
     mock_org_response.json.return_value = organization
 
     mock_activity_response = Mock()
     mock_activity_response.status_code = 200
-    mock_activity_response.json.return_value = activity_response
+    mock_activity_response.json.return_value = []
 
     with patch(
         "backend.enrichment.github_activity.requests.get",
@@ -123,3 +124,83 @@ def test_github_organization_with_recent_activity():
     assert result["exists"] is True
     assert result["recent_activity"] is True
     assert result["website"] == "https://example.com"
+
+
+def test_activity_network_failure_returns_unknown():
+    with patch(
+        "backend.enrichment.github_activity.requests.get",
+        side_effect=requests.Timeout,
+    ):
+        result = _get_recent_public_activity("example")
+
+    assert result is None
+
+
+def test_activity_http_error_returns_unknown():
+    mock_response = Mock()
+    mock_response.status_code = 403
+
+    with patch(
+        "backend.enrichment.github_activity.requests.get",
+        return_value=mock_response,
+    ):
+        result = _get_recent_public_activity("example")
+
+    assert result is None
+
+
+def test_activity_invalid_response_returns_unknown():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"message": "API error"}
+
+    with patch(
+        "backend.enrichment.github_activity.requests.get",
+        return_value=mock_response,
+    ):
+        result = _get_recent_public_activity("example")
+
+    assert result is None
+
+
+def test_activity_empty_events_returns_false():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = []
+
+    with patch(
+        "backend.enrichment.github_activity.requests.get",
+        return_value=mock_response,
+    ):
+        result = _get_recent_public_activity("example")
+
+    assert result is False
+
+
+def test_activity_failure_is_preserved_in_enrichment_result():
+    organization = {
+        "login": "example",
+        "blog": "https://example.com",
+    }
+
+    mock_org_response = Mock()
+    mock_org_response.status_code = 200
+    mock_org_response.json.return_value = organization
+
+    with patch(
+        "backend.enrichment.github_activity.requests.get",
+        side_effect=[
+            mock_org_response,
+            requests.Timeout(),
+        ],
+    ):
+        result = get_github_activity(
+            "example",
+            "example.com",
+        )
+
+    assert result == {
+        "exists": True,
+        "recent_activity": None,
+        "website": "https://example.com",
+    }
