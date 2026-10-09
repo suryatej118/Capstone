@@ -160,8 +160,20 @@ def _score_github_activity(
 
     if website and company_domain:
         website_domain = _domain_from_text(str(website))
+        normalized_company_domain = _domain_from_text(
+            str(company_domain)
+        )
 
-        if website_domain == company_domain:
+        if (
+            website_domain
+            and normalized_company_domain
+            and (
+                website_domain == normalized_company_domain
+                or website_domain.endswith(
+                    "." + normalized_company_domain
+                )
+            )
+        ):
             score += 1
 
     return min(score, WEIGHTS["github_org_activity"])

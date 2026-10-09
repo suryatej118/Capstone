@@ -8,6 +8,11 @@ from backend.enrichment.company import extract_company_name
 from backend.enrichment.careers import detect_careers_page
 from backend.enrichment.job_postings import get_active_job_postings
 from backend.enrichment.opencorporates import match_company_name
+from backend.enrichment.domain_age import get_domain_age_years
+from backend.enrichment.github_activity import (
+    extract_github_org,
+    get_github_activity,
+)
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
@@ -107,6 +112,13 @@ def analyze(request: AnalyzeRequest):
     domains = extract_domains(request.text)
     company_name = extract_company_name(request.text)
 
+    domain_age_years = None
+
+    if domains:
+        domain_age_years = get_domain_age_years(domains[0])
+
+    signals["domain_age_years"] = domain_age_years
+
     careers_result = detect_careers_page(
         request.text,
         domains[0] if domains else None,
@@ -140,6 +152,15 @@ def analyze(request: AnalyzeRequest):
             signals["opencorporates_match"] = "pending"
     else:
         signals["opencorporates_match"] = "pending"
+
+    github_org = extract_github_org(request.text)
+    if github_org:
+        github_result = get_github_activity(
+            github_org,
+            signals.get("company_domain"),
+        )
+        signals["github_org"] = github_result
+
 
     hiring_score, hiring_reasons = compute_hiring_intent(
         request.text,
