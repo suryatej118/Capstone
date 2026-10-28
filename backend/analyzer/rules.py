@@ -1,3 +1,4 @@
+
 import re
 from dataclasses import dataclass
 from typing import Callable, Optional
@@ -21,9 +22,6 @@ class Rule:
     weight: int
     matcher: Callable[[str], Optional[re.Match]]
 
-# ---------------------------------------------------------------------------
-# Rule matching functions
-# ---------------------------------------------------------------------------
 
 def regex_match(pattern: str) -> Callable[[str], Optional[re.Match]]:
     compiled = re.compile(pattern, re.IGNORECASE)
@@ -34,27 +32,55 @@ def regex_match(pattern: str) -> Callable[[str], Optional[re.Match]]:
     return matcher
 
 
-# R01 - Fee/payment request
+# R01 - Recruitment-related payment demands.
+# Does not require a currency amount for common recruitment scams.
 R01_PATTERN = (
-    r"\b(pay|payment|fee|charge|deposit|registration|training)\b"
-    r".{0,100}"
-    r"\b(Rs\.?|₹|INR|\d{3,})\b"
+    r"\b(?:"
+    r"(?:pay|payment|transfer|send|deposit|purchase|buy|remit|wire)\b"
+    r".{0,100}\b(?:fee|charge|deposit|payment|registration|interview|"
+    r"shortlisting|processing|verification|activation|equipment|shipping|"
+    r"courier|training|certificate|access|booking|security)\b"
+    r"|"
+    r"\b(?:fee|charge|deposit|payment)\b.{0,100}\b(?:pay|transfer|send|"
+    r"purchase|buy|interview|shortlisting|processing|verification|"
+    r"activation|equipment|shipping|courier|training|certificate|access)\b"
+    r"|"
+    r"\b(?:buy|purchase)\b.{0,80}\b(?:gift cards?|vouchers?)\b"
+    r"|"
+    r"\b(?:gift cards?|vouchers?)\b.{0,80}\b"
+    r"(?:redeem|redemption codes?|send|share|payment)\b"
+    r"|"
+    r"\b(?:pay|transfer|send)\b.{0,80}\b"
+    r"(?:upi|personal account|personal wallet|private account|recruiter'?s account)\b"
+    r"|"
+    r"\b(?:Rs\.?|₹|INR)\s?\d[\d,]*(?:\.\d{1,2})?\b"
+    r".{0,100}\b(?:job|interview|recruitment|application|offer|joining|"
+    r"candidate|recruiter)\b"
+    r")"
 )
 
 
-# R02 - Sensitive personal/banking information
+# R02 - Sensitive information requests.
+# The matcher first looks for a request to disclose sensitive information.
+# Safety warnings that merely mention OTPs or passwords should not trigger R02.
 R02_PATTERN = (
-    r"\b("
-    r"aadhaar|pan|otp|one[-\s]?time|bank account|"
-    r"ifsc|account no|account number"
+    r"\b(?:"
+    r"send|share|provide|submit|reveal|disclose|tell|forward|"
+    r"enter|text|message|email|upload"
+    r")\b.{0,100}\b(?:"
+    r"aadhaar|pan|otp|one[-\s]?time password|"
+    r"bank account|ifsc|account no|account number|"
+    r"banking password|online banking password|"
+    r"debit card cvv|card security code|"
+    r"cvv|upi pin|bank password"
     r")\b"
 )
 
 
-# R03 - Monetary transfer / UPI
+# R03 - Monetary transfer / UPI.
 R03_PATTERN = (
-    r"("
-    r"\b[0-9]{2,4}(\.[0-9]{1,2})?\s?(INR|Rs|₹)\b"
+    r"(?:"
+    r"\b[0-9]{2,4}(?:\.[0-9]{1,2})?\s?(?:INR|Rs\.?|₹)\b"
     r"|"
     r"\b(?:pay|payment|send|transfer|upi)\b.{0,80}"
     r"\b[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}\b"
@@ -62,50 +88,40 @@ R03_PATTERN = (
 )
 
 
-# R04 - Urgency / pressure
+# R04 - Urgency / pressure.
 R04_PATTERN = (
-    r"\b("
-    r"apply now|limited seats|immediate joining|urgent|today only|ASAP"
-    r")\b"
+    r"\b(?:apply now|limited seats|immediate joining|urgent|today only|"
+    r"ASAP|within \d+ minutes?|expires in \d+ minutes?|right away)\b"
 )
 
 
-# R05 - Suspicious links / domains
+# R05 - Suspicious links / domains.
 R05_PATTERN = (
-    r"("
-    r"https?://[^\s/]*\.(ru|xyz|info|club|tk|ml|gq|cf)\b"
-    r"|"
-    r"https?://\d+\.\d+\.\d+\.\d+"
-    r"|"
-    r"\b(bit\.ly|tinyurl|goo\.gl)\b"
+    r"(?:"
+    r"https?://[^\s/]*\.(?:ru|xyz|info|club|tk|ml|gq|cf)\b"
+    r"|https?://\d+\.\d+\.\d+\.\d+"
+    r"|\b(?:bit\.ly|tinyurl|goo\.gl|t\.co)/?\S*"
     r")"
 )
 
 
-# R08 - Generic promises / unrealistic salary
+# R08 - Generic promises / unrealistic salary.
 R08_PATTERN = (
-    r"\b("
-    r"high pay|work from home and earn|no experience required|"
-    r"guaranteed salary"
-    r")\b"
+    r"\b(?:high pay|work from home and earn|no experience required|"
+    r"guaranteed salary|guaranteed placement|guaranteed job|"
+    r"selection guaranteed)\b"
 )
 
 
-# R10 - Personal contact information
+# R10 - Personal contact information.
 R10_PATTERN = (
-    r"("
-    # Phone number
+    r"(?:"
     r"\b(?:\+91[-\s]?)?[6-9]\d{9}\b"
     r"|"
-    # Email address
     r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
     r")"
 )
 
-
-# ---------------------------------------------------------------------------
-# Rule definitions
-# ---------------------------------------------------------------------------
 
 RULES = [
     Rule(
@@ -117,7 +133,7 @@ RULES = [
     ),
     Rule(
         rule_id="R02",
-        description="Early request for sensitive personal/banking details",
+        description="Request for sensitive personal/banking details",
         severity="HIGH",
         weight=30,
         matcher=regex_match(R02_PATTERN),
@@ -160,13 +176,9 @@ RULES = [
 ]
 
 
-# Total weight of all ten rules, including context-dependent rules.
+# Text rules total 126; context rules total 28.
 TOTAL_RULE_WEIGHT = 154
 
-
-# ---------------------------------------------------------------------------
-# Rule engine
-# ---------------------------------------------------------------------------
 
 def analyze_rules(
     text: str,
@@ -175,29 +187,35 @@ def analyze_rules(
     is_duplicate: bool = False,
     uppercase_ratio: Optional[float] = None,
 ) -> tuple[int, list[TriggeredRule]]:
-    """
-    Analyze job-post text using the MVP rule set.
-
-    Returns:
-        (rule_score, triggered_rules)
-
-    Context-dependent rules:
-        R06: contact_channel_mismatch
-        R07: is_duplicate
-        R09: uppercase_ratio
-
-    These are optional because their required context comes from other
-    parts of the application.
-    """
+    """Return a normalized rule score and the triggered rules."""
 
     triggered: list[TriggeredRule] = []
     score_sum = 0
 
-    # Text-based rules
+    # R02 should not trigger for a warning that merely tells readers
+    # not to disclose sensitive information.
+    warning_patterns = [
+        r"\bnever\s+(?:share|send|disclose|reveal|provide|give)\b",
+        r"\bdo\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
+        r"\bdon't\s+(?:share|send|disclose|reveal|provide|give)\b",
+        r"\bshould\s+never\s+(?:share|send|disclose|reveal|provide|give)\b",
+        r"\bshould\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
+    ]
+
+    sensitive_warning = any(
+        re.search(pattern, text, re.IGNORECASE)
+        for pattern in warning_patterns
+    )
+
     for rule in RULES:
         match = rule.matcher(text)
 
         if match:
+            # Suppress R02 only when the message is phrased as a
+            # direct safety warning against disclosing sensitive data.
+            if rule.rule_id == "R02" and sensitive_warning:
+                continue
+
             triggered.append(
                 TriggeredRule(
                     rule_id=rule.rule_id,
@@ -210,21 +228,22 @@ def analyze_rules(
             )
             score_sum += rule.weight
 
-    # R06 - Contact channel mismatch
+    # R06 - Contact channel mismatch.
     if contact_channel_mismatch:
+        start = text.find(contact_channel_mismatch)
         triggered.append(
             TriggeredRule(
                 rule_id="R06",
                 description="Contact channel mismatch / unofficial recruiter handles",
                 span=contact_channel_mismatch,
                 weight=15,
-                start=text.find(contact_channel_mismatch),
-                end=text.find(contact_channel_mismatch) + len(contact_channel_mismatch),
+                start=start,
+                end=start + len(contact_channel_mismatch) if start >= 0 else -1,
             )
         )
         score_sum += 15
 
-    # R07 - Reposting / near-duplicate
+    # R07 - Reposting / near-duplicate.
     if is_duplicate:
         triggered.append(
             TriggeredRule(
@@ -238,30 +257,19 @@ def analyze_rules(
         )
         score_sum += 10
 
-    # R09 - Poor grammar / many ALL-CAPS words
-    #
-    # The project specification does not define the exact X threshold yet,
-    # so uppercase_ratio is supplied by the caller rather than hard-coded.
-    if uppercase_ratio is not None and uppercase_ratio > 0:
-        # The exact threshold will be tuned during evaluation.
-        # For now, this rule is triggered when the supplied heuristic
-        # determines that the text contains excessive uppercase usage.
-        if uppercase_ratio >= 0.30:
-            triggered.append(
-                TriggeredRule(
-                    rule_id="R09",
-                    description="Poor grammar / many ALL-CAPS words",
-                    span="excessive uppercase usage",
-                    weight=3,
-                    start=-1,
-                    end=-1,
-                )
+    # R09 - Excessive uppercase usage.
+    if uppercase_ratio is not None and uppercase_ratio >= 0.30:
+        triggered.append(
+            TriggeredRule(
+                rule_id="R09",
+                description="Poor grammar / excessive uppercase usage",
+                span="excessive uppercase usage",
+                weight=3,
+                start=-1,
+                end=-1,
             )
-            score_sum += 3
+        )
+        score_sum += 3
 
-    rule_score = min(
-        100,
-        round((score_sum / TOTAL_RULE_WEIGHT) * 100),
-    )
-
+    rule_score = min(100, round((score_sum / TOTAL_RULE_WEIGHT) * 100))
     return rule_score, triggered

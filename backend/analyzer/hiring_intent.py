@@ -337,17 +337,21 @@ def compute_hiring_intent(
 
     opencorporates_match = signals.get("opencorporates_match")
 
-    if opencorporates_match == "pending":
-        oc_score = 0
-        oc_confidence = 40
-
-    elif opencorporates_match is True:
+    if opencorporates_match is True:
+        # A confirmed registry match is positive evidence.
         oc_score = WEIGHTS["opencorporates_match"]
         oc_confidence = 80
 
-    else:
+    elif opencorporates_match is False:
+        # A completed lookup with no match earns no positive points.
+        # It is not, by itself, proof of fraud.
         oc_score = 0
-        oc_confidence = 60
+        oc_confidence = 65
+
+    else:
+        # Pending or unavailable lookup: evidence is unknown.
+        oc_score = 0
+        oc_confidence = 40
 
     reasons.append({
         "signal": "opencorporates_match",
@@ -370,11 +374,20 @@ def compute_hiring_intent(
         active_job_postings_count
     )
 
+    postings_value_known = active_job_postings_count is not None
+    try:
+        postings_value_known = (
+            postings_value_known and int(active_job_postings_count) >= 0
+        )
+    except (TypeError, ValueError):
+        postings_value_known = False
+
     reasons.append({
         "signal": "active_job_postings_count",
         "value": active_job_postings_count,
         "score": postings_score,
-        "confidence": 60,
+        # A confirmed zero is different from a failed/unavailable lookup.
+        "confidence": 75 if postings_value_known else 30,
     })
 
     positive_score += postings_score
@@ -390,11 +403,20 @@ def compute_hiring_intent(
         company_domain,
     )
 
+    github_evidence_known = (
+        isinstance(github_org, dict)
+        and isinstance(github_org.get("exists"), bool)
+    )
     reasons.append({
         "signal": "github_org_activity",
         "value": github_org,
         "score": github_score,
-        "confidence": 70,
+        # Missing lookup result is unknown; an explicit exists=False is known.
+        "confidence": (
+            75 if github_evidence_known and github_org.get("exists")
+            else 60 if github_evidence_known
+            else 30
+        ),
     })
 
     positive_score += github_score
@@ -409,11 +431,20 @@ def compute_hiring_intent(
         domain_age_years
     )
 
+    try:
+        domain_age_known = (
+            domain_age_years is not None
+            and float(domain_age_years) >= 0
+        )
+    except (TypeError, ValueError):
+        domain_age_known = False
+
     reasons.append({
         "signal": "domain_age_years",
         "value": domain_age_years,
         "score": domain_age_score,
-        "confidence": 60,
+        # Missing/invalid age is unknown, not evidence of a young domain.
+        "confidence": 85 if domain_age_known else 30,
     })
 
     positive_score += domain_age_score
@@ -438,11 +469,18 @@ def compute_hiring_intent(
         except (TypeError, ValueError):
             search_score = 0
 
+    try:
+        search_presence_known = (
+            search_presence is not None and int(search_presence) >= 0
+        )
+    except (TypeError, ValueError):
+        search_presence_known = False
+
     reasons.append({
         "signal": "search_presence_hiring",
         "value": search_presence,
         "score": search_score,
-        "confidence": 50,
+        "confidence": 65 if search_presence_known else 30,
     })
 
     positive_score += search_score

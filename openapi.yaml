@@ -5,6 +5,20 @@ info:
 servers:
   - url: http://localhost:8000
 paths:
+  /health:
+    get:
+      summary: Check API health
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
   /analyze:
     post:
       summary: Analyze a job message and return rule+ML scores, hiring intent, explanations, and next-step templates
@@ -37,11 +51,27 @@ paths:
               schema:
                 type: object
                 properties:
-                  rule_score: { type: integer, description: '0-100 rule engine score' }
-                  ml_probability: { type: number, format: float, nullable: true, description: 'probability of scam (0-1) or null if model missing' }
-                  final_score: { type: number, description: 'fused score 0-100' }
-                  risk_level: { type: string, enum: [Low, Medium, High] }
-                  confidence: { type: integer, description: '0-100 system confidence' }
+                  rule_score:
+                    type: integer
+                    description: 0-100 rule engine score
+                  ml_probability:
+                    type: number
+                    format: float
+                    nullable: true
+                    description: Estimated scam probability from 0 to 1, or null if the model is unavailable
+                  final_score:
+                    type: number
+                    description: Fused risk score from 0 to 100
+                  risk_level:
+                    type: string
+                    enum: [Low, Medium, High]
+                  confidence:
+                    type: integer
+                    minimum: 0
+                    maximum: 100
+                    description: >-
+                      Heuristic confidence indicator, not a calibrated probability.
+                      Uses 50% rule certainty, 40% model certainty, and 10% retrieval strength.
                   reasons:
                     type: array
                     items:
@@ -61,14 +91,15 @@ paths:
                         text: { type: string }
                   hiring_intent_score:
                     type: integer
-                    description: '0-100 Hiring Intent Score (higher == more likely a genuine hiring intent)'
+                    description: 0-100 Hiring Intent Score; higher means more evidence of genuine hiring intent
                   hiring_intent_reasons:
                     type: array
                     items:
                       type: object
                       properties:
                         signal: { type: string }
-                        value: { type: string }
+                        value:
+                          description: Evidence value; may be a string, number, boolean, or null
                         score: { type: number }
                         confidence: { type: integer }
                   suggested_templates:
@@ -80,7 +111,6 @@ paths:
                         title: { type: string }
                         tone: { type: string, enum: [polite, firm, verification] }
                         template: { type: string }
-
 components:
   x-defaults:
     fusion_weights:
@@ -90,6 +120,17 @@ components:
       rule: 0.5
       ml: 0.4
       retrieval: 0.1
+    confidence_heuristic:
+      rule_certainty: >-
+        Sum of non-negative triggered rule weights divided by 30, capped at 100.
+      model_certainty: >-
+        Absolute distance of ML probability from 0.5, scaled to 0-100;
+        0.5 gives 0 and 0 or 1 gives 100.
+      retrieval_strength: >-
+        Percentage of attempted enrichment checks that returned usable evidence.
+      note: >-
+        Confidence is a heuristic indicator and is not a statistically calibrated
+        probability that the system's risk classification is correct.
     note: |
       final_score = rule*0.4 + ml*0.6
-      confidence = weighted combination of rule certainty, model certainty, and retrieval strength
+      confidence = rule_certainty*0.5 + model_certainty*0.4 + retrieval_strength*0.1
