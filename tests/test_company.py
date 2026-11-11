@@ -27,3 +27,27 @@ def test_extract_company_returns_none_when_not_found():
 
 def test_extract_company_handles_empty_text():
     assert extract_company_name("") is None
+
+
+def test_extract_company_from_inviting_applications():
+    text = (
+        "ABC Technologies is inviting applications "
+        "for Software Engineer Intern positions."
+    )
+
+    assert extract_company_name(text) == "ABC Technologies"
+
+
+def test_extract_company_from_recruitment_announcement():
+    text = (
+        "Global Tech Solutions Pvt. Ltd. announces "
+        "recruitment for freshers."
+    )
+
+    assert extract_company_name(text) == "Global Tech Solutions Pvt. Ltd"
+
+
+def test_extract_company_from_expanding_team():
+    text = "Google is expanding its team."
+
+    assert extract_company_name(text) == "Google"

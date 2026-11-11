@@ -74,7 +74,7 @@ def test_analyze_unverified_careers_url_does_not_award_careers_points(monkeypatc
     assert reason["value"] is False
 
 
-def test_analyze_verified_careers_page_awards_full_points(monkeypatch):
+def test_unverified_careers_page_does_not_award_points(monkeypatch):
     _mock_enrichment(
         monkeypatch,
         {
@@ -90,9 +90,11 @@ def test_analyze_verified_careers_page_awards_full_points(monkeypatch):
     )
 
     assert response.status_code == 200
+
     reason = _careers_reason(response.json())
-    assert reason["score"] == 20
-    assert reason["value"] is True
+
+    assert reason["score"] == 0
+    assert reason["value"] is False
 
 
 def test_analyze_only_checks_job_postings_for_verified_careers_page(monkeypatch):
@@ -117,3 +119,72 @@ def test_analyze_only_checks_job_postings_for_verified_careers_page(monkeypatch)
 
     assert response.status_code == 200
     assert calls == []
+
+
+def test_analyze_does_not_use_unverified_domain_for_domain_age(monkeypatch):
+    domain_age_calls = []
+
+    _mock_enrichment(
+        monkeypatch,
+        {"present": False, "url": None, "method": "none"},
+    )
+
+    monkeypatch.setattr(
+        "backend.main.get_domain_age_years",
+        lambda domain: domain_age_calls.append(domain) or 30,
+    )
+
+    response = client.post(
+        "/analyze",
+        json={
+            "text": (
+                "Example Company is hiring. "
+                "Website: https://example.com/careers"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert domain_age_calls == []
+
+    age_reason = next(
+        item
+        for item in response.json()["hiring_intent_reasons"]
+        if item["signal"] == "domain_age_years"
+    )
+
+    assert age_reason["score"] == 0
+
+
+def test_analyze_does_not_pass_unverified_domain_to_careers_lookup(monkeypatch):
+    careers_calls = []
+
+    _mock_enrichment(
+        monkeypatch,
+        {"present": False, "url": None, "method": "none"},
+    )
+
+    monkeypatch.setattr(
+        "backend.main.detect_careers_page",
+        lambda text, domain=None: (
+            careers_calls.append(domain)
+            or {
+                "present": False,
+                "url": None,
+                "method": "none",
+            }
+        ),
+    )
+
+    response = client.post(
+        "/analyze",
+        json={
+            "text": (
+                "Example Company is hiring. "
+                "Website: https://example.com/careers"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert careers_calls == [None]

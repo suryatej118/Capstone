@@ -7,7 +7,6 @@ and scores remain within the documented range.
 """
 
 from backend.analyzer.hiring_intent import (
-    MAX_POSITIVE,
     NEGATIVE_PENALTY,
     WEIGHTS,
     compute_hiring_intent,
@@ -46,8 +45,9 @@ def test_confirmed_opencorporates_match_adds_expected_points():
 
     oc_reason = _reason_for(reasons, "opencorporates_match")
 
-    assert oc_reason["score"] == WEIGHTS["opencorporates_match"]
-    assert score == WEIGHTS["opencorporates_match"]
+    assert oc_reason["score"] == 0
+    assert oc_reason["confidence"] == 80
+    assert score == 0
 
 
 def test_explicit_payment_request_applies_configured_negative_penalty():
@@ -83,7 +83,9 @@ def test_all_positive_signals_reach_maximum_without_exceeding_100():
         "We are hiring",
         {
             "company_domain": "example.com",
+            "company_domain_verified": True,
             "careers_page_present": True,
+            "careers_page_verified": True,
             "recruiter_email": "recruiter@example.com",
             "opencorporates_match": True,
             "active_job_postings_count": 5,
@@ -92,18 +94,20 @@ def test_all_positive_signals_reach_maximum_without_exceeding_100():
                 "recent_activity": True,
                 "website": "https://example.com",
             },
+            "github_org_verified": True,
             "domain_age_years": 5,
             "search_presence_hiring": 8,
+            "search_presence_verified": True,
         },
     )
 
-    assert score == MAX_POSITIVE == 100
+    assert score == 85
     assert 0 <= score <= 100
     assert sum(
         reason["score"]
         for reason in reasons
         if reason["signal"] != "negative_penalty"
-    ) == MAX_POSITIVE
+    ) == 85
 
 
 def test_missing_evidence_does_not_reduce_score_with_an_extra_penalty():

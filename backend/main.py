@@ -1,8 +1,16 @@
 import logging
 import re
+import os
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
-from fastapi import FastAPI
+from backend.enrichment.company_website import evaluate_company_website
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
+
+from backend.database import Base, engine, get_db
+from backend.models import Scan
 from pydantic import BaseModel, Field
 
 from backend.analyzer.hiring_intent import compute_hiring_intent
@@ -10,7 +18,13 @@ from backend.analyzer.rules import analyze_rules
 from backend.analyzer.scoring import calculate_final_score, get_risk_level
 from backend.enrichment.careers import detect_careers_page
 from backend.enrichment.company import extract_company_name
-from backend.enrichment.domain import extract_emails, extract_domains
+from backend.enrichment.domain import (
+    extract_emails,
+    extract_url_domains,
+)
+
+# Backward-compatible name used by existing tests.
+extract_domains = extract_url_domains
 from backend.enrichment.domain_age import get_domain_age_years
 from backend.enrichment.github_activity import (
     extract_github_org,
@@ -20,6 +34,8 @@ from backend.enrichment.job_postings import get_active_job_postings
 from backend.enrichment.opencorporates import match_company_name
 from backend.ml.predict import predict_scam_probability
 
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,7 +44,21 @@ app = FastAPI(
     title="Job Scam Radar API",
     version="0.1.0",
 )
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("FRONTEND_URL", "").split(",")
+    if origin.strip()
+]
 
+if allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
+Base.metadata.create_all(bind=engine)
 
 class AnalyzeRequest(BaseModel):
     text: str = Field(
@@ -54,6 +84,7 @@ class HighlightedSpan(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
+    scan_id: Optional[int] = None
     rule_score: int
     ml_probability: Optional[float] = None
     final_score: float
@@ -64,6 +95,7 @@ class AnalyzeResponse(BaseModel):
     hiring_intent_score: int
     hiring_intent_reasons: list[dict]
     suggested_templates: list[dict]
+    company_website: dict
 
 
 def unknown_github_result():
@@ -146,14 +178,132 @@ def apply_high_severity_rule_override(
 
     return "High"
 
+@app.get("/", include_in_schema=False)
+def home():
+    frontend_file = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+    return FileResponse(frontend_file)
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
+@app.get("/scans")
+def get_scan_history(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    scans = (
+        db.query(Scan)
+        .order_by(Scan.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "total": db.query(Scan).count(),
+        "scans": [
+            {
+                "id": scan.id,
+                "platform": scan.platform,
+                "risk_level": scan.risk_level,
+                "final_score": scan.final_score,
+                "confidence": scan.confidence,
+                "created_at": (
+                    scan.created_at.isoformat()
+                    if scan.created_at else None
+                ),
+                "preview": scan.submitted_text[:150],
+            }
+            for scan in scans
+        ],
+    }
+
+
+@app.get("/scans/{scan_id}")
+def get_scan_report(
+    scan_id: int,
+    db: Session = Depends(get_db),
+):
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+
+    if scan is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Scan report not found",
+        )
+
+    return {
+        "id": scan.id,
+        "requester_id": scan.requester_id,
+        "platform": scan.platform,
+        "submitted_text": scan.submitted_text,
+        "rule_score": scan.rule_score,
+        "ml_probability": scan.ml_probability,
+        "final_score": scan.final_score,
+        "risk_level": scan.risk_level,
+        "confidence": scan.confidence,
+        "hiring_intent_score": scan.hiring_intent_score,
+        "reasons": scan.reasons,
+        "highlighted_spans": scan.highlighted_spans,
+        "hiring_intent_reasons": scan.hiring_intent_reasons,
+        "suggested_templates": scan.suggested_templates,
+        "created_at": (
+            scan.created_at.isoformat()
+            if scan.created_at else None
+        ),
+    }
+
+
+@app.get("/dashboard/stats")
+def get_dashboard_stats(db: Session = Depends(get_db)):
+    total = db.query(Scan).count()
+
+    high = db.query(Scan).filter(
+        Scan.risk_level == "High"
+    ).count()
+
+    medium = db.query(Scan).filter(
+        Scan.risk_level == "Medium"
+    ).count()
+
+    low = db.query(Scan).filter(
+        Scan.risk_level == "Low"
+    ).count()
+
+    recent = (
+        db.query(Scan)
+        .order_by(Scan.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    return {
+        "total_scans": total,
+        "high_risk": high,
+        "medium_risk": medium,
+        "low_risk": low,
+        "recent_scans": [
+            {
+                "id": scan.id,
+                "risk_level": scan.risk_level,
+                "final_score": scan.final_score,
+                "platform": scan.platform,
+                "created_at": (
+                    scan.created_at.isoformat()
+                    if scan.created_at else None
+                ),
+            }
+            for scan in recent
+        ],
+    }
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-def analyze(request: AnalyzeRequest):
+def analyze(
+    request: AnalyzeRequest,
+    db: Session = Depends(get_db),
+):
     # 1. Core rule analysis. Core analysis errors are intentionally not hidden.
     rule_score, triggered_rules = analyze_rules(request.text)
 
@@ -219,7 +369,7 @@ def analyze(request: AnalyzeRequest):
     try:
         domains = extract_domains(request.text)
     except Exception:
-        logger.exception("Domain extraction failed")
+        logger.exception("URL domain extraction failed")
         domains = []
 
     try:
@@ -228,88 +378,77 @@ def analyze(request: AnalyzeRequest):
         logger.exception("Company-name extraction failed")
         company_name = None
 
-    # 6. Domain age lookup.
-    domain_age_years = None
-    if domains:
-        retrieval_checks += 1
-        try:
-            domain_age_years = get_domain_age_years(domains[0])
-            if domain_age_years is not None:
-                successful_retrievals += 1
-        except Exception:
-            logger.exception("Domain-age lookup failed")
+    company_website = evaluate_company_website(company_name) if company_name else {
+        "status": "unknown",
+        "verified": False,
+        "candidate_domain": None,
+        "reason": "company_name_not_detected",
+    }
 
-    signals["domain_age_years"] = domain_age_years
+    # 6. Domain age lookup.
+    # Extracted URLs are unverified. Do not use their domains for company
+    # domain-age scoring until ownership has been independently established.
+
+    domain_age_years = None
+    signals["domain_age_years"] = None
+
+    signals["company_domain"] = None
+    signals["company_domain_verified"] = False
 
     # 7. Careers-page detection.
-    # A keyword mention or a URL-shaped link is not enough to count as a
-    # verified careers page. The current detector uses method="website" only
-    # when its website check succeeds.
-    careers_result = {"present": False, "url": None, "method": "none"}
+    # We can identify a careers-looking URL, but cannot establish that it
+    # belongs to the claimed company without verified domain ownership.
+
+    careers_result = {
+        "present": False,
+        "url": None,
+        "method": "none",
+    }
+
     retrieval_checks += 1
 
     try:
-        result = detect_careers_page(
-            request.text,
-            domains[0] if domains else None,
-        )
+        result = detect_careers_page(request.text, None)
 
         if isinstance(result, dict):
             careers_result = result
         else:
-            logger.warning("Careers lookup returned an unexpected result")
+            logger.warning(
+                "Careers lookup returned an unexpected result"
+            )
     except Exception:
-        logger.exception("Careers-page lookup failed")
+        logger.exception("Careers-page detection failed")
 
     careers_url = careers_result.get("url")
     careers_method = careers_result.get("method")
 
-    careers_page_verified = (
-        careers_result.get("present") is True
-        and careers_method == "website"
-        and isinstance(careers_url, str)
-        and bool(careers_url.strip())
-    )
+    # Candidate detection is not company verification.
+    careers_page_verified = False
 
-    if careers_page_verified:
-        successful_retrievals += 1
-
-    signals["careers_page_present"] = careers_page_verified
-
-    # Preserve the evidence type for diagnostics and future explainability.
+    signals["careers_page_present"] = False
+    signals["careers_page_verified"] = False
     signals["careers_page_method"] = careers_method
-    signals["careers_page_url"] = careers_url if careers_page_verified else None
+    signals["careers_page_url"] = careers_url
 
     # 8. Active job postings.
-    # Only query a URL that the careers detector verified on the company site.
-    # None means unavailable/unknown, not zero active postings.
+    # Disabled until a careers page is linked to a verified company domain.
+
     active_job_postings_count = None
 
-    if careers_page_verified:
-        retrieval_checks += 1
-        try:
-            job_postings_result = get_active_job_postings(careers_url)
+    signals["active_job_postings_count"] = None
 
-            if isinstance(job_postings_result, dict):
-                active_job_postings_count = job_postings_result.get("count")
-                if active_job_postings_count is not None:
-                    successful_retrievals += 1
-            else:
-                logger.warning(
-                    "Job-postings lookup returned an unexpected result"
-                )
-        except Exception:
-            logger.exception("Active job-postings lookup failed")
+    # 9. Recruiter email and company information.
+    # Extracted email addresses and URLs are retained as raw evidence.
+    # Neither establishes company-domain ownership.
 
-    signals["active_job_postings_count"] = active_job_postings_count
-
-    # 9. Recruiter email and company domain.
     if emails:
         signals["recruiter_email"] = emails[0]
-    if domains:
-        signals["company_domain"] = domains[0]
+
     if company_name:
         signals["company_name"] = company_name
+
+    signals["company_domain"] = None
+    signals["company_domain_verified"] = False
 
     # 10. OpenCorporates verification. Failed/unavailable lookups stay pending.
     signals["opencorporates_match"] = "pending"
@@ -329,33 +468,12 @@ def analyze(request: AnalyzeRequest):
         except Exception:
             logger.exception("OpenCorporates lookup failed")
 
-    # 11. GitHub organization activity. Missing/failed evidence is unknown.
-    github_org = None
-    try:
-        github_org = extract_github_org(request.text)
-    except Exception:
-        logger.exception("GitHub organization extraction failed")
+    # 11. GitHub organization activity.
+    # An organization mentioned in a job message is not automatically
+    # connected to the claimed company.
 
-    if github_org:
-        retrieval_checks += 1
-        try:
-            github_result = get_github_activity(
-                github_org,
-                signals.get("company_domain"),
-            )
-
-            if isinstance(github_result, dict):
-                signals["github_org"] = github_result
-                if github_result.get("exists") is not None:
-                    successful_retrievals += 1
-            else:
-                logger.warning(
-                    "GitHub activity lookup returned an unexpected result"
-                )
-                signals["github_org"] = unknown_github_result()
-        except Exception:
-            logger.exception("GitHub activity lookup failed")
-            signals["github_org"] = unknown_github_result()
+    signals["github_org"] = None
+    signals["github_org_verified"] = False
 
     # 12. Confidence: count only usable enrichment evidence as successful.
     retrieval_strength = (
@@ -377,7 +495,7 @@ def analyze(request: AnalyzeRequest):
     )
 
     # 14. Return the established API response structure.
-    return AnalyzeResponse(
+    response = AnalyzeResponse(
         rule_score=rule_score,
         ml_probability=ml_probability,
         final_score=final_score,
@@ -388,4 +506,38 @@ def analyze(request: AnalyzeRequest):
         hiring_intent_score=hiring_score,
         hiring_intent_reasons=hiring_reasons,
         suggested_templates=[],
+        company_website=company_website,
     )
+
+    # Save the completed analysis only when requested.
+    if request.save_report:
+        scan = Scan(
+            requester_id=request.requester_id,
+            platform=request.platform,
+            submitted_text=request.text,
+            rule_score=rule_score,
+            ml_probability=ml_probability,
+            final_score=final_score,
+            risk_level=risk_level,
+            confidence=confidence,
+            hiring_intent_score=hiring_score,
+            reasons=jsonable_encoder(reasons),
+            highlighted_spans=jsonable_encoder(highlighted_spans),
+            hiring_intent_reasons=jsonable_encoder(hiring_reasons),
+            suggested_templates=[],
+        )
+
+        try:
+            db.add(scan)
+            db.commit()
+            db.refresh(scan)
+            response.scan_id = scan.id
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to save scan report")
+            raise HTTPException(
+                status_code=500,
+                detail="Analysis completed, but saving the report failed.",
+            )
+
+    return response

@@ -76,7 +76,12 @@ def test_verified_careers_page_awards_full_points(monkeypatch):
     )
     _, reasons = compute_hiring_intent(
         text,
-        {"careers_page_present": careers_verified},
+        {
+            "company_domain": "example.com",
+            "company_domain_verified": True,
+            "careers_page_present": careers_verified,
+            "careers_page_verified": careers_verified,
+        },
     )
     careers_reason = next(
         item for item in reasons

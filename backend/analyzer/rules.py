@@ -34,30 +34,116 @@ def regex_match(pattern: str) -> Callable[[str], Optional[re.Match]]:
 
 # R01 - Recruitment-related payment demands.
 # Does not require a currency amount for common recruitment scams.
+
+
 R01_PATTERN = (
-    r"\b(?:"
-    r"(?:pay|payment|transfer|send|deposit|purchase|buy|remit|wire)\b"
+    r"(?:"
+    # Specific recruitment fee followed by an amount.
+    r"\b(?:registration|processing|onboarding|verification|"
+    r"interview|training|security|application|joining)\b"
+    r"(?:\s+\w+){0,5}\s+fee\b"
+    r".{0,60}(?:₹\s?|Rs\.?\s?|INR\s?)"
+    r"\d[\d,]*(?:\.\d{1,2})?"
+
+    r"|"
+
+    # Amount followed by a named recruitment fee.
+    r"(?:₹\s?|Rs\.?\s?|INR\s?)"
+    r"\d[\d,]*(?:\.\d{1,2})?"
+    r".{0,50}\b(?:registration|processing|onboarding|"
+    r"verification|interview|training|security|application|joining)"
+    r"\s+fee\b"
+
+    r"|"
+
+    # Generic payment instruction and recruitment fee.
+    r"\b(?:pay|payment|transfer|send|deposit|purchase|buy|remit|wire)\b"
     r".{0,100}\b(?:fee|charge|deposit|payment|registration|interview|"
     r"shortlisting|processing|verification|activation|equipment|shipping|"
     r"courier|training|certificate|access|booking|security)\b"
+
     r"|"
+
     r"\b(?:fee|charge|deposit|payment)\b.{0,100}\b(?:pay|transfer|send|"
-    r"purchase|buy|interview|shortlisting|processing|verification|"
-    r"activation|equipment|shipping|courier|training|certificate|access)\b"
+    r"purchase|buy|required|requires|must|interview|shortlisting|"
+    r"processing|verification|activation|equipment|shipping|courier|"
+    r"training|certificate|access)\b"
+
     r"|"
+
     r"\b(?:buy|purchase)\b.{0,80}\b(?:gift cards?|vouchers?)\b"
+
     r"|"
+
     r"\b(?:gift cards?|vouchers?)\b.{0,80}\b"
     r"(?:redeem|redemption codes?|send|share|payment)\b"
+
     r"|"
+
     r"\b(?:pay|transfer|send)\b.{0,80}\b"
-    r"(?:upi|personal account|personal wallet|private account|recruiter'?s account)\b"
-    r"|"
-    r"\b(?:Rs\.?|₹|INR)\s?\d[\d,]*(?:\.\d{1,2})?\b"
-    r".{0,100}\b(?:job|interview|recruitment|application|offer|joining|"
-    r"candidate|recruiter)\b"
+    r"(?:upi|personal account|personal wallet|private account|"
+    r"recruiter'?s account)\b"
     r")"
 )
+
+
+def match_r01(text: str) -> Optional[re.Match]:
+    """
+    Prioritize explicit recruitment fee demands.
+    Ignore matches inside sentences that explicitly deny payment.
+    """
+
+    if not text:
+        return None
+
+    # Mask sentences that explicitly state no payment or fee is required.
+    # Spaces preserve the original character positions for highlighting.
+    masked_text = list(text)
+
+    negative_pattern = re.compile(
+        r"(?i)(?:^|(?<=[.!?;])\s*)"
+        r"[^.!?;]*(?:"
+        r"\bno\s+(?:registration\s+)?(?:fee|payment|charge)\b"
+        r"|"
+        r"\b(?:fee|payment|charge)\s+is\s+not\s+required\b"
+        r"|"
+        r"\bnot\s+required\s+to\s+pay\b"
+        r"|"
+        r"\bno\s+payment\s+is\s+required\b"
+        r")[^.!?;]*(?:[.!?;]|$)"
+    )
+
+    for negative_match in negative_pattern.finditer(text):
+        for index in range(
+            negative_match.start(),
+            negative_match.end()
+        ):
+            masked_text[index] = " "
+
+    searchable_text = "".join(masked_text)
+
+    # First preference: named recruitment fee and its amount.
+    specific_fee_pattern = re.compile(
+        r"\b(?:registration|processing|onboarding|verification|"
+        r"interview|training|security|application|joining)\b"
+        r".{0,100}?\bfee\b"
+        r".{0,60}?"
+        r"(?:₹\s*|Rs\.?\s*|INR\s*)"
+        r"\d[\d,]*(?:\.\d{1,2})?",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    match = specific_fee_pattern.search(searchable_text)
+
+    if match:
+        return match
+
+    # Fall back to the existing generic R01 pattern.
+    return re.search(
+        R01_PATTERN,
+        searchable_text,
+        re.IGNORECASE | re.DOTALL
+    )
 
 
 # R02 - Sensitive information requests.
@@ -77,22 +163,36 @@ R02_PATTERN = (
 )
 
 
-# R03 - Monetary transfer / UPI.
+
+# R03 - Explicit monetary transfer / UPI destination.
+# Do not treat ordinary email addresses as UPI IDs.
+
 R03_PATTERN = (
     r"(?:"
-    r"\b[0-9]{2,4}(?:\.[0-9]{1,2})?\s?(?:INR|Rs\.?|₹)\b"
+    # Payment instruction followed by a currency amount.
+    r"\b(?:pay|transfer|send|deposit|remit)\b"
+    r"(?:\s+\w+){0,6}\s+"
+    r"(?:₹\s?|\bINR\s?|\bRs\.?\s?)"
+    r"\d[\d,]*(?:\.\d{1,2})?"
     r"|"
-    r"\b(?:pay|payment|send|transfer|upi)\b.{0,80}"
-    r"\b[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}\b"
+    # Explicitly labelled UPI ID.
+    r"\bUPI(?:\s+(?:ID|address))?"
+    r"\s*(?:is|:|=|-)?\s*"
+    r"[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}\b"
     r")"
 )
 
 
+
 # R04 - Urgency / pressure.
+
 R04_PATTERN = (
-    r"\b(?:apply now|limited seats|immediate joining|urgent|today only|"
-    r"ASAP|within \d+ minutes?|expires in \d+ minutes?|right away)\b"
+    r"\b(?:limited seats|immediate joining|urgent|today only|"
+    r"ASAP|within \d+ minutes?|expires in \d+ minutes?|"
+    r"right away|apply within \d+ hours?|"
+    r"only \d+ vacancies? remaining)\b"
 )
+
 
 
 # R05 - Suspicious links / domains.
@@ -129,7 +229,7 @@ RULES = [
         description="Fee/payment request in hiring context",
         severity="HIGH",
         weight=30,
-        matcher=regex_match(R01_PATTERN),
+        matcher=match_r01,
     ),
     Rule(
         rule_id="R02",

@@ -102,3 +102,22 @@ def extract_domains(text: str) -> List[str]:
             domains.append(domain)
 
     return list(dict.fromkeys(domains))
+
+def extract_url_domains(text: str) -> List[str]:
+    """
+    Extract domains exclusively from HTTP/HTTPS URLs.
+
+    Email provider domains are deliberately excluded.
+    """
+    if not text:
+        return []
+
+    domains = []
+
+    for url in extract_urls(text):
+        domain = normalize_domain(url)
+
+        if domain:
+            domains.append(domain)
+
+    return list(dict.fromkeys(domains))

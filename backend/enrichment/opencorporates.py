@@ -136,16 +136,26 @@ def _normalize_company_name(name: str) -> str:
 
     return " ".join(words)
 
+
 def match_company_name(
     company_name: str,
     min_similarity: float = 0.85,
 ) -> dict:
     """
-    Search OpenCorporates and determine whether a sufficiently
-    similar company name was found.
+    Search OpenCorporates and return ranked company-name candidates.
 
-    Returns a normalized result instead of exposing the raw API response.
+    A registry match is supporting company-registration evidence.
+    It does not verify recruiter identity or job legitimacy.
     """
+
+    if not company_name or not company_name.strip():
+        return {
+            "matched": False,
+            "match_type": "invalid_input",
+            "similarity": 0.0,
+            "company": None,
+            "candidates": [],
+        }
 
     results = search_company(company_name)
 
@@ -155,10 +165,9 @@ def match_company_name(
         .get("companies", [])
     )
 
-    best_match = None
-    best_similarity = 0.0
-
     normalized_input = _normalize_company_name(company_name)
+
+    candidates = []
 
     for item in companies:
         company = item.get("company", {})
@@ -167,7 +176,12 @@ def match_company_name(
         if not returned_name:
             continue
 
-        normalized_returned = _normalize_company_name(returned_name)
+        normalized_returned = _normalize_company_name(
+            returned_name
+        )
+
+        if not normalized_input or not normalized_returned:
+            continue
 
         similarity = SequenceMatcher(
             None,
@@ -175,25 +189,47 @@ def match_company_name(
             normalized_returned,
         ).ratio()
 
-        if similarity > best_similarity:
-            best_similarity = similarity
-            best_match = company
+        candidates.append({
+            "name": returned_name,
+            "company_number": company.get("company_number"),
+            "jurisdiction_code": company.get("jurisdiction_code"),
+            "current_status": company.get("current_status"),
+            "opencorporates_url": company.get("opencorporates_url"),
+            "similarity": round(similarity, 3),
+            "exact_name_match": (
+                normalized_input == normalized_returned
+            ),
+        })
+
+    candidates.sort(
+        key=lambda candidate: candidate["similarity"],
+        reverse=True,
+    )
+
+    best_match = candidates[0] if candidates else None
 
     if best_match is None:
         return {
             "matched": False,
+            "match_type": "no_match",
             "similarity": 0.0,
             "company": None,
+            "candidates": [],
         }
 
+    matched = best_match["similarity"] >= min_similarity
+
+    match_type = (
+        "exact"
+        if best_match["exact_name_match"]
+        else "fuzzy" if matched
+        else "below_threshold"
+    )
+
     return {
-        "matched": best_similarity >= min_similarity,
-        "similarity": round(best_similarity, 3),
-        "company": {
-            "name": best_match.get("name"),
-            "company_number": best_match.get("company_number"),
-            "jurisdiction_code": best_match.get("jurisdiction_code"),
-            "current_status": best_match.get("current_status"),
-            "opencorporates_url": best_match.get("opencorporates_url"),
-        },
+        "matched": matched,
+        "match_type": match_type,
+        "similarity": best_match["similarity"],
+        "company": best_match,
+        "candidates": candidates,
     }

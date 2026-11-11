@@ -1,7 +1,11 @@
 .env
+.env.*
+!.env.example
 .venv/
+venv/
 __pycache__/
 *.pyc
+*.py[cod]
 data/*.joblib
 data/company_cache.db
 # Local datasets and evaluation artifacts
@@ -13,3 +17,16 @@ evaluation_results/
 
 # Locally generated model artifacts
 data/*.joblib
+
+# Local scan database
+job_scam_radar.db
+job_scam_radar.db-shm
+job_scam_radar.db-wal
+
+node_modules/
+frontend/dist/
+*.db
+*.sqlite
+*.sqlite3
+
+.pytest_cache/

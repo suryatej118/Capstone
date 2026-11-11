@@ -40,6 +40,7 @@ FREE_EMAIL_DOMAINS = {
     "hotmail.com",
     "outlook.com",
     "yandex.com",
+    "rediffmail.com"
 }
 
 
@@ -179,32 +180,73 @@ def _score_github_activity(
     return min(score, WEIGHTS["github_org_activity"])
 
 
+
+
+
 def _detect_payment_request(text: str) -> bool:
     """
-    Detect an explicit monetary payment request.
-
-    This is intentionally conservative and only looks for a payment-related
-    request combined with a currency amount.
+    Detect an explicit recruitment-related payment demand.
+    Ignore clauses that explicitly deny payment requirements.
     """
     if not text:
         return False
 
-    payment_keyword = re.search(
-        r"\b(pay|fee|charge|transfer|send money|registration fee|processing fee)\b",
+    currency = (
+        r"(?:₹\s*|Rs\.?\s*|INR\s+|USD\s+|EUR\s+|GBP\s+)"
+        r"\d[\d,]*(?:\.\d{1,2})?"
+    )
+
+    payment_patterns = [
+        # Explicit payment instruction followed by an amount.
+        rf"\b(?:pay|transfer|send|deposit|remit)\b"
+        rf".{{0,120}}{currency}",
+
+        # Recruitment-related fee, allowing intervening words.
+        rf"\b(?:registration|processing|onboarding|"
+        rf"verification|interview|training|security|"
+        rf"application|joining)\b"
+        rf".{{0,80}}\bfee\b"
+        rf".{{0,60}}{currency}",
+
+        # Amount followed by a recruitment-related fee.
+        rf"{currency}.{{0,60}}"
+        rf"\b(?:registration|processing|onboarding|"
+        rf"verification|interview|training|security|"
+        rf"application|joining)\b"
+        rf".{{0,40}}\b(?:fee|charge)\b",
+    ]
+
+    # Split at sentence boundaries without splitting "Rs. 2,499".
+    clauses = re.split(
+        r"(?<=[!?;])\s+|(?<=[.!?])\s+(?=[A-Z])|\n+",
         text,
-        re.I,
     )
 
-    if not payment_keyword:
-        return False
+    for clause in clauses:
+        clause = clause.strip()
 
-    currency_amount = (
-    re.search(r"[\$\u20B9\u20AC\u00A3]\s*\d{1,}", text)
-    or re.search(r"\b(?:Rs\.?|INR|USD|EUR|GBP)\s*\d+\b", text, re.I)
-    or re.search(r"\b\d+\s?(?:USD|INR|EUR|GBP)\b", text, re.I)
-    )
+        if not clause:
+            continue
 
-    return bool(currency_amount)
+        negated = re.search(
+            r"\b(?:no|not|never|without|isn't|is\s+not|"
+            r"doesn't|does\s+not|won't|will\s+not)\b"
+            r".{0,80}\b(?:fee|payment|pay|charge|deposit)\b",
+            clause,
+            re.IGNORECASE,
+        )
+
+        if negated:
+            continue
+
+        if any(
+            re.search(pattern, clause, re.IGNORECASE)
+            for pattern in payment_patterns
+        ):
+            return True
+
+    return False
+
 
 
 # ---------------------------------------------------------------------------
@@ -239,16 +281,15 @@ def compute_hiring_intent(
 
     # -----------------------------------------------------------------------
     # 1. Corporate domain
-    # -----------------------------------------------------------------------
 
-    company_domain = (
-        signals.get("company_domain")
-        or _domain_from_text(text)
+    company_domain = signals.get("company_domain")
+    company_domain_verified = (
+        signals.get("company_domain_verified") is True
     )
 
     corporate_domain_present = (
-        bool(signals.get("corporate_domain_present"))
-        or bool(company_domain)
+        company_domain_verified
+        and bool(company_domain)
     )
 
     corporate_score = (
@@ -259,9 +300,9 @@ def compute_hiring_intent(
 
     reasons.append({
         "signal": "corporate_domain_present",
-        "value": corporate_domain_present,
+        "value": company_domain_verified,
         "score": corporate_score,
-        "confidence": 90,
+        "confidence": 90 if company_domain_verified else 30,
     })
 
     positive_score += corporate_score
@@ -270,21 +311,22 @@ def compute_hiring_intent(
     # 2. Careers page
     # -----------------------------------------------------------------------
 
-    careers_page_present = bool(
-        signals.get("careers_page_present", False)
+    careers_page_verified = (
+        signals.get("careers_page_verified") is True
+        and company_domain_verified
     )
 
     careers_score = (
         WEIGHTS["careers_page_present"]
-        if careers_page_present
+        if careers_page_verified
         else 0
     )
 
     reasons.append({
         "signal": "careers_page_present",
-        "value": careers_page_present,
+        "value": careers_page_verified,
         "score": careers_score,
-        "confidence": 80,
+        "confidence": 80 if careers_page_verified else 30,
     })
 
     positive_score += careers_score
@@ -294,33 +336,24 @@ def compute_hiring_intent(
     # -----------------------------------------------------------------------
 
     recruiter_email = signals.get("recruiter_email")
-
     recruiter_domain = _domain_from_email(recruiter_email)
 
     recruiter_score = 0
-    recruiter_confidence = 40
+    recruiter_confidence = 30
 
     if recruiter_email:
         if (
-            recruiter_domain
-            and company_domain
-            and recruiter_domain == company_domain
+            company_domain_verified
+            and recruiter_domain
+            and recruiter_domain == company_domain.lower().strip()
         ):
-            # Exact company-domain match
             recruiter_score = WEIGHTS["recruiter_email_corporate"]
             recruiter_confidence = 95
-
-        elif (
-            recruiter_domain
-            and recruiter_domain not in FREE_EMAIL_DOMAINS
-        ):
-            # Corporate-looking domain, but not an exact company match
-            recruiter_score = 10
-            recruiter_confidence = 80
-
         elif _is_free_email(recruiter_email):
-            recruiter_score = 0
             recruiter_confidence = 90
+        else:
+            # A non-free email domain is not automatically a company domain.
+            recruiter_confidence = 40
 
     reasons.append({
         "signal": "recruiter_email_corporate",
@@ -337,17 +370,14 @@ def compute_hiring_intent(
 
     opencorporates_match = signals.get("opencorporates_match")
 
+    # A registry name match establishes neither recruiter identity
+    # nor authorization to advertise a job.
+    oc_score = 0
+
     if opencorporates_match is True:
-        # A confirmed registry match is positive evidence.
-        oc_score = WEIGHTS["opencorporates_match"]
         oc_confidence = 80
-
     elif opencorporates_match is False:
-        # A completed lookup with no match earns no positive points.
-        # It is not, by itself, proof of fraud.
-        oc_score = 0
         oc_confidence = 65
-
     else:
         # Pending or unavailable lookup: evidence is unknown.
         oc_score = 0
@@ -367,11 +397,13 @@ def compute_hiring_intent(
     # -----------------------------------------------------------------------
 
     active_job_postings_count = signals.get(
-        "active_job_postings_count"
+    "active_job_postings_count"
     )
 
-    postings_score = _score_active_postings(
-        active_job_postings_count
+    postings_score = (
+        _score_active_postings(active_job_postings_count)
+        if careers_page_verified
+        else 0
     )
 
     postings_value_known = active_job_postings_count is not None
@@ -398,9 +430,15 @@ def compute_hiring_intent(
 
     github_org = signals.get("github_org")
 
-    github_score = _score_github_activity(
-        github_org,
-        company_domain,
+    github_org_verified = (
+    signals.get("github_org_verified") is True
+    and company_domain_verified
+    )
+
+    github_score = (
+        _score_github_activity(github_org, company_domain)
+        if github_org_verified
+        else 0
     )
 
     github_evidence_known = (
@@ -425,10 +463,16 @@ def compute_hiring_intent(
     # 7. Domain age
     # -----------------------------------------------------------------------
 
-    domain_age_years = signals.get("domain_age_years")
+    domain_age_years = (
+        signals.get("domain_age_years")
+        if company_domain_verified
+        else None
+    )
 
-    domain_age_score = _score_domain_age(
-        domain_age_years
+    domain_age_score = (
+        _score_domain_age(domain_age_years)
+        if company_domain_verified
+        else 0
     )
 
     try:
@@ -453,14 +497,14 @@ def compute_hiring_intent(
     # 8. Search presence
     # -----------------------------------------------------------------------
 
-    search_presence = signals.get(
-        "search_presence_hiring"
+    search_presence = signals.get("search_presence_hiring")
+
+    search_presence_verified = (
+        signals.get("search_presence_verified") is True
+        and company_domain_verified
     )
 
-    if search_presence is None:
-        search_score = 0
-
-    else:
+    if search_presence_verified and search_presence is not None:
         try:
             search_score = min(
                 WEIGHTS["search_presence_hiring"],
@@ -468,6 +512,8 @@ def compute_hiring_intent(
             )
         except (TypeError, ValueError):
             search_score = 0
+    else:
+        search_score = 0
 
     try:
         search_presence_known = (
