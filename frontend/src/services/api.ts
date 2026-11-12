@@ -1,3 +1,6 @@
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || ""
+).replace(/\/$/, "");
 
 export interface AnalyzeRequest {
   text: string;
@@ -20,6 +23,14 @@ export interface HighlightedSpan {
 }
 
 export interface AnalyzeResponse {
+  company_website: {
+  status: string;
+  verified: boolean;
+  candidate_domain: string | null;
+  reason?: string;
+  website_url?: string;
+  identity_evidence?: Record<string, unknown>;
+};
   scan_id?: number | null;
   rule_score: number;
   ml_probability: number | null;
@@ -36,7 +47,7 @@ export interface AnalyzeResponse {
 export async function analyzeJob(
   payload: AnalyzeRequest
 ): Promise<AnalyzeResponse> {
-  const response = await fetch("/analyze", {
+  const response = await fetch(`${API_BASE_URL}/analyze`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -71,7 +82,7 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const response = await fetch("/dashboard/stats");
+  const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
 
   if (!response.ok) {
     const errorBody = await response.text();
@@ -105,7 +116,7 @@ export async function getScans(
   offset = 0
 ): Promise<ScanHistoryResponse> {
   const response = await fetch(
-    `/scans?limit=${limit}&offset=${offset}`
+    `${API_BASE_URL}/scans?limit=${limit}&offset=${offset}`
   );
 
   if (!response.ok) {
@@ -141,7 +152,7 @@ export interface ScanDetail {
 export async function getScanDetails(
   scanId: number
 ): Promise<ScanDetail> {
-  const response = await fetch(`/scans/${scanId}`);
+  const response = await fetch(`${API_BASE_URL}/scans/${scanId}`);
 
   if (!response.ok) {
     const errorBody = await response.text();
