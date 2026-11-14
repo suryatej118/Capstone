@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+scikit-learn==1.9.1
+python-whois
+tldextract
+SQLAlchemy
+psycopg[binary]
+python-dotenv
+joblib
+requests
+ddgs
