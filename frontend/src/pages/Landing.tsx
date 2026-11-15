@@ -14,10 +14,10 @@ function RiskPreview() {
   return (
     <div className="landing-risk-preview">
       <div className="preview-heading">
-        <span className="preview-kicker">LIVE ANALYSIS</span>
+        <span className="preview-kicker">DEMONSTRATION DATA</span>
         <span className="preview-status">
-          <span className="status-dot" />
-          Ready
+          <span className="demo-dot" />
+          Example result
         </span>
       </div>
       <div className="preview-message">
@@ -36,6 +36,10 @@ function RiskPreview() {
         <span><ShieldAlert size={14} /> Urgency language</span>
         <span><CheckCircle2 size={14} /> Explainable result</span>
       </div>
+      <p className="preview-disclaimer">
+        This is a fictional example for illustration. Your results are generated
+        after you submit a posting.
+      </p>
     </div>
   );
 }
@@ -49,6 +53,9 @@ function Landing() {
           <span>Job Scam <strong>Radar</strong></span>
         </a>
         <div className="landing-nav-links">
+          <a href="/dashboard">Dashboard</a>
+          <a href="/analyzer">Analyzer</a>
+          <a href="/history">History</a>
           <a href="#how-it-works">How it works</a>
           <a href="#why-radar">Why Radar</a>
           <a className="landing-nav-cta" href="/analyzer">Analyze a posting <ArrowRight size={15} /></a>
