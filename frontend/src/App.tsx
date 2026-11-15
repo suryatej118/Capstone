@@ -16,6 +16,7 @@ import MagnificationDock, {
 
 import "./index.css";
 import Analyzer from "./pages/Analyzer";
+import Landing from "./pages/Landing";
 
 function PlaceholderPage({
   title,
@@ -88,6 +89,7 @@ function AppLayout() {
 
       <main className="main-content">
         <Routes>
+          <Route path="/landing" element={<Landing />} />
           <Route path="/" element={<Overview />} />
           <Route path="/analyzer" element={<Analyzer />} />
           <Route path="/history" element={<HistoryPage />} />
