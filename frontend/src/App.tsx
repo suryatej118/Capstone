@@ -39,12 +39,16 @@ function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  if (location.pathname === "/" || location.pathname === "/landing") {
+    return <Landing />;
+  }
+
   const items: DockItemData[] = [
     {
       icon: <LayoutDashboard size={22} />,
       label: "Overview",
-      onClick: () => navigate("/"),
-      active: location.pathname === "/",
+      onClick: () => navigate("/dashboard"),
+      active: location.pathname === "/dashboard",
     },
     {
       icon: <ScanSearch size={22} />,
@@ -89,8 +93,9 @@ function AppLayout() {
 
       <main className="main-content">
         <Routes>
+          <Route path="/" element={<Landing />} />
           <Route path="/landing" element={<Landing />} />
-          <Route path="/" element={<Overview />} />
+          <Route path="/dashboard" element={<Overview />} />
           <Route path="/analyzer" element={<Analyzer />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route

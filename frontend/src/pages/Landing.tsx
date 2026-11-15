@@ -8,16 +8,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 import "./Landing.css";
-
-type Variant = "signal" | "shield" | "calm";
-
-const variants: Array<{ id: Variant; label: string }> = [
-  { id: "signal", label: "Signal Grid" },
-  { id: "shield", label: "Shield Split" },
-  { id: "calm", label: "Calm Trust" },
-];
 
 function RiskPreview() {
   return (
@@ -50,20 +41,10 @@ function RiskPreview() {
 }
 
 function Landing() {
-  const [params, setParams] = useSearchParams();
-  const requestedVariant = params.get("variant") as Variant | null;
-  const variant = variants.some((item) => item.id === requestedVariant)
-    ? requestedVariant!
-    : "signal";
-
-  const selectVariant = (next: Variant) => {
-    setParams({ variant: next });
-  };
-
   return (
-    <div className={`landing-page landing-${variant}`}>
+    <div className="landing-page landing-signal">
       <nav className="landing-nav">
-        <a className="landing-brand" href="/landing?variant=signal">
+        <a className="landing-brand" href="/">
           <span className="landing-brand-icon"><ShieldCheck size={20} /></span>
           <span>Job Scam <strong>Radar</strong></span>
         </a>
@@ -73,19 +54,6 @@ function Landing() {
           <a className="landing-nav-cta" href="/analyzer">Analyze a posting <ArrowRight size={15} /></a>
         </div>
       </nav>
-
-      <div className="landing-sample-switcher" aria-label="Landing page samples">
-        <span>Design samples</span>
-        {variants.map((item) => (
-          <button
-            className={item.id === variant ? "active" : ""}
-            key={item.id}
-            onClick={() => selectVariant(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
 
       <main>
         <section className="landing-hero">
