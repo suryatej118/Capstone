@@ -85,37 +85,12 @@ export default function Overview() {
   }, []);
 
   useEffect(() => {
-  let cancelled = false;
+    const loadId = window.setTimeout(() => {
+      void loadDashboard();
+    }, 0);
 
-  async function fetchDashboard() {
-    try {
-      const data = await getDashboardStats();
-
-      if (!cancelled) {
-        setStats(data);
-        setError("");
-      }
-    } catch (err) {
-      if (!cancelled) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load dashboard data."
-        );
-      }
-    } finally {
-      if (!cancelled) {
-        setLoading(false);
-      }
-    }
-  }
-
-  void fetchDashboard();
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => window.clearTimeout(loadId);
+  }, [loadDashboard]);
 
   const total = stats?.total_scans ?? 0;
   const high = stats?.high_risk ?? 0;
