@@ -56,8 +56,8 @@ function Landing() {
           <a href="/dashboard">Dashboard</a>
           <a href="/analyzer">Analyzer</a>
           <a href="/history">History</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#why-radar">Why Radar</a>
+          <a className="landing-nav-scroll-link" href="#how-it-works">How it works</a>
+          <a className="landing-nav-scroll-link" href="#why-radar">Why Radar</a>
           <a className="landing-nav-cta" href="/analyzer">Analyze a posting <ArrowRight size={15} /></a>
         </div>
       </nav>

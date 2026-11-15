@@ -145,9 +145,19 @@
 .landing-calm .landing-preview-section { margin-top: 55px; }
 
 @media (max-width: 760px) {
-  .landing-nav { min-height: 70px; }
-  .landing-nav-links a:not(.landing-nav-cta) { display: none; }
-  .landing-nav-links { gap: 0; }
+  .landing-nav {
+    min-height: 70px;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 14px 0;
+  }
+  .landing-nav-links {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .landing-nav-scroll-link { display: none; }
+  .landing-nav-links .landing-nav-cta { padding: 8px 10px; }
   .landing-hero,
   .landing-shield .landing-hero,
   .landing-calm .landing-hero,
