@@ -1,0 +1,104 @@
+
+.dock-wrapper {
+  position: fixed;
+  z-index: 100;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
+}
+
+.dock-panel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(110, 231, 183, 0.15);
+  border-radius: 22px;
+  background: rgba(20, 31, 25, 0.88);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px rgba(255, 255, 255, 0.04);
+  pointer-events: auto;
+}
+
+.dock-item {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 15px;
+  background: rgba(38, 53, 46, 0.85);
+  color: #b7c5bd;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.dock-item:hover,
+.dock-item:focus-visible {
+  background: #30483b;
+  border-color: rgba(52, 211, 153, 0.55);
+  color: #ffffff;
+}
+
+.dock-item.active {
+  background: #18382a;
+  border-color: rgba(52, 211, 153, 0.65);
+  color: #34d399;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.09);
+}
+
+.dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-tooltip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #1b2622;
+  color: var(--text);
+  font-size: 11px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+@media (max-width: 520px) {
+  .dock-wrapper {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    max-width: calc(100vw - 16px);
+  }
+
+  .dock-panel {
+    gap: 5px;
+    padding: 7px;
+    border-radius: 19px;
+  }
+
+  .dock-item {
+    border-radius: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-item {
+    transition: none;
+  }
+}

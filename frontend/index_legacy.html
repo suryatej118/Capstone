@@ -1,0 +1,428 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>Job Scam Radar — Verify Before You Apply</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --panel: #111c2e;
+      --panel2: #17243a;
+      --line: #2a3a52;
+      --text: #edf3fc;
+      --muted: #9caec5;
+      --accent: #60a5fa;
+      --green: #34d399;
+      --yellow: #fbbf24;
+      --red: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(ellipse at top, #152a46, var(--bg) 55%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+    .container { width: min(1100px, 92%); margin: auto; }
+    header {
+      padding: 25px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; gap: 12px; align-items: center; }
+    .logo {
+      display: grid; place-items: center; width: 44px; height: 44px;
+      border-radius: 13px; background: #1d3c61; font-size: 24px;
+    }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: 20px; margin-bottom: 3px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 13px; line-height: 1.6; }
+    main { padding: 45px 0 70px; }
+    .hero { text-align: center; max-width: 720px; margin: 0 auto 32px; }
+    .eyebrow {
+      display: inline-block; color: #93c5fd; background: #17304d;
+      border: 1px solid #294b71; padding: 7px 12px;
+      border-radius: 999px; font-size: 12px; letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .hero h2 { font-size: clamp(30px, 5vw, 46px); line-height: 1.12; margin: 18px 0 12px; }
+    .hero h2 span { color: var(--accent); }
+    .hero p { color: var(--muted); line-height: 1.7; }
+    .layout { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; align-items: start; }
+    .card {
+      background: rgba(17, 28, 46, .94); border: 1px solid var(--line);
+      border-radius: 18px; padding: 24px; box-shadow: 0 16px 40px #0002;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    label { display: block; font-size: 14px; margin: 20px 0 9px; }
+    input, textarea, select {
+      width: 100%; border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 13px; color: var(--text); background: #0b1424;
+      font: inherit; outline: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 235px; line-height: 1.6; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 7px; }
+    button {
+      border: 0; border-radius: 10px; padding: 13px 18px;
+      font: inherit; font-weight: 700; cursor: pointer;
+    }
+    .primary { background: var(--accent); color: #071426; width: 100%; margin-top: 17px; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .sample { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+    .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    .actions button { font-size: 13px; }
+    .privacy { display: flex; gap: 9px; margin-top: 17px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .privacy span { color: var(--green); }
+    .feature { display: flex; gap: 13px; margin-top: 24px; }
+    .feature-icon { width: 39px; height: 39px; flex: 0 0 39px; border-radius: 11px; background: var(--panel2); display: grid; place-items: center; }
+    .feature p { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    #status { margin-top: 16px; font-size: 14px; line-height: 1.5; }
+    #results { display: none; margin-top: 24px; }
+    .results-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .badge { padding: 8px 12px; border-radius: 999px; font-weight: 800; font-size: 12px; }
+    .risk-low { color: #6ee7b7; background: #064e3b; }
+    .risk-medium { color: #fde68a; background: #713f12; }
+    .risk-high { color: #fecdd3; background: #881337; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+    .metric { background: #0b1424; padding: 14px; border-radius: 12px; border: 1px solid var(--line); }
+    .metric strong { display: block; font-size: 23px; margin-top: 6px; overflow-wrap: anywhere; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .section-title { font-size: 15px; margin: 23px 0 12px; }
+    .reason {
+      padding: 13px; background: #0b1424; border: 1px solid var(--line);
+      border-radius: 11px; margin-bottom: 9px;
+    }
+    .reason strong { display: block; font-size: 13px; margin-bottom: 5px; }
+    .reason p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.5; }
+    .empty { color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .warning { border-left: 3px solid var(--yellow); padding: 10px 12px; background: #292311; color: #fde68a; font-size: 12px; line-height: 1.6; border-radius: 5px; }
+    .error { color: #fda4af; }
+    footer { border-top: 1px solid var(--line); padding: 23px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    @media (max-width: 780px) {
+      .layout { grid-template-columns: 1fr; }
+      main { padding-top: 30px; }
+      .card { padding: 19px; }
+      .hero { margin-bottom: 25px; }
+    }
+    @media (max-width: 420px) {
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="container brand">
+    <div class="logo" aria-hidden="true">⌕</div>
+    <div>
+      <h1>Job Scam Radar</h1>
+      <div class="muted small">Verify before you apply.</div>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <span class="eyebrow">AI-assisted job safety</span>
+    <h2>Not every job offer is <span>what it seems.</span></h2>
+    <p>Analyze a job description for suspicious patterns, recruitment-fee requests, and other warning signs before you share personal information or accept an offer.</p>
+  </section>
+
+  <div class="layout">
+    <section class="card">
+      <h3>Analyze a job posting</h3>
+      <p class="muted small">Paste the job description or recruitment message below.</p>
+
+      <form id="analyzeForm">
+        <label for="jobText">Job description <span class="muted">(required)</span></label>
+        <textarea id="jobText" maxlength="30000" required
+          placeholder="Paste the complete job description, including the company name, responsibilities, application instructions, and any payment requests..."></textarea>
+        <div class="hint"><span id="charCount">0</span>/30,000 characters</div>
+
+        <label for="platform">Where did you find this posting?</label>
+        <select id="platform">
+          <option value="Website">Company website</option>
+          <option value="LinkedIn">LinkedIn</option>
+          <option value="Job portal">Job portal</option>
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="Email">Email</option>
+          <option value="Other">Other / unknown</option>
+        </select>
+
+        <button class="primary" id="analyzeButton" type="submit">Analyze job posting →</button>
+        <div id="status" role="status" aria-live="polite"></div>
+      </form>
+
+      <div class="actions">
+        <button class="sample" id="sampleButton" type="button">Load sample suspicious offer</button>
+        <button class="sample" id="clearButton" type="button">Clear</button>
+      </div>
+      <div class="privacy"><span>●</span><div>Review the results carefully. An automated score is an indicator, not proof that a job or employer is fraudulent.</div></div>
+    </section>
+
+    <aside class="card">
+      <h3>What the radar checks</h3>
+      <p class="muted small">Your existing detection backend powers the analysis.</p>
+      <div class="feature">
+        <div class="feature-icon">⚑</div>
+        <div><strong>Suspicious patterns</strong><p>Looks for signals such as requests for money, urgency, and other rule-based warning signs.</p></div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⌘</div>
+        <div><strong>Machine-learning analysis</strong><p>Estimates scam likelihood from the text using your trained classifier.</p></div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">◎</div>
+        <div><strong>Company evidence</strong><p>When available, the backend can check company, domain, career-page, and related evidence.</p></div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">☷</div>
+        <div><strong>Explainable results</strong><p>Shows triggered rules and highlighted phrases so you can understand the assessment.</p></div>
+      </div>
+      <div class="warning" style="margin-top:25px">Never pay a recruiter to secure a job, and never share OTPs, passwords, or banking credentials with someone claiming to be a recruiter.</div>
+    </aside>
+  </div>
+
+  <section id="results" class="card" aria-live="polite">
+    <div class="results-heading">
+      <div>
+        <h3>Analysis results</h3>
+        <p class="muted small" id="resultSubtitle">Assessment based on the submitted text.</p>
+      </div>
+      <span id="riskBadge" class="badge">Risk</span>
+    </div>
+    <div class="metrics">
+      <div class="metric"><span>Hybrid score</span><strong id="finalScore">—</strong></div>
+      <div class="metric"><span>ML scam probability</span><strong id="mlProbability">—</strong></div>
+      <div class="metric"><span>Confidence indicator</span><strong id="confidence">—</strong></div>
+    </div>
+    <p class="muted small">The hybrid score and ML probability are different measures. The confidence indicator is heuristic, not a calibrated probability of correctness.</p>
+
+    <h4 class="section-title">Why this result?</h4>
+    <div id="reasons"></div>
+
+    <h4 class="section-title">Highlighted suspicious phrases</h4>
+    <div id="highlights"></div>
+
+    <h4 class="section-title">Hiring-intent signals</h4>
+    <div id="hiringIntent"></div>
+
+    <div class="warning" style="margin-top:20px">This result is decision support, not a guarantee. Verify the employer using independently obtained official contact details before taking action.</div>
+  </section>
+</main>
+
+<footer>
+  <div class="container">Job Scam Radar · Capstone prototype · Automated analysis can make mistakes; independently verify employers and job offers.</div>
+</footer>
+
+<script>
+  const form = document.getElementById("analyzeForm");
+  const textInput = document.getElementById("jobText");
+  const button = document.getElementById("analyzeButton");
+  const statusBox = document.getElementById("status");
+  const results = document.getElementById("results");
+
+  textInput.addEventListener("input", () => {
+    document.getElementById("charCount").textContent = textInput.value.length;
+  });
+
+  document.getElementById("sampleButton").addEventListener("click", () => {
+    textInput.value =
+      "Congratulations! You have been selected for a Software Developer position. " +
+      "Pay a refundable registration fee of Rs. 2,000 today to confirm your job. " +
+      "Immediate joining. Send the payment receipt to the recruiter.";
+    document.getElementById("charCount").textContent = textInput.value.length;
+    textInput.focus();
+  });
+
+  document.getElementById("clearButton").addEventListener("click", () => {
+    textInput.value = "";
+    document.getElementById("charCount").textContent = "0";
+    statusBox.textContent = "";
+    statusBox.className = "";
+    results.style.display = "none";
+    textInput.focus();
+  });
+
+  function safeText(tag, value) {
+    const node = document.createElement(tag);
+    node.textContent = value == null ? "" : String(value);
+    return node;
+  }
+
+  function renderReasons(data) {
+    const container = document.getElementById("reasons");
+    container.replaceChildren();
+
+    const reasons = Array.isArray(data.reasons) ? data.reasons : [];
+    if (!reasons.length) {
+      container.appendChild(safeText(
+        "p",
+        "No rule-based warning was triggered. This does not guarantee the posting is safe."
+      )).className = "empty";
+      return;
+    }
+
+    reasons.forEach(reason => {
+      const card = document.createElement("div");
+      card.className = "reason";
+      const title = safeText("strong",
+        `${reason.rule_id || "Rule"} · ${reason.description || "Warning signal"}`
+      );
+      const detail = safeText("p",
+        `Weight: ${reason.weight ?? "N/A"}${reason.span ? " · Matched text: “" + reason.span + "”" : ""}`
+      );
+      card.append(title, detail);
+      container.appendChild(card);
+    });
+  }
+
+  function renderHighlights(data, originalText) {
+    const container = document.getElementById("highlights");
+    container.replaceChildren();
+    const spans = Array.isArray(data.highlighted_spans)
+      ? data.highlighted_spans : [];
+
+    if (!spans.length) {
+      container.appendChild(safeText(
+        "p",
+        "No specific phrase was highlighted by the rules."
+      )).className = "empty";
+      return;
+    }
+
+    // Use offsets only when valid; never inject returned text as HTML.
+    const valid = spans.filter(s =>
+      Number.isInteger(s.start) && Number.isInteger(s.end) &&
+      s.start >= 0 && s.end > s.start && s.end <= originalText.length
+    ).sort((a, b) => a.start - b.start);
+
+    if (!valid.length) {
+      container.appendChild(safeText(
+        "p",
+        "Highlights were returned, but their positions could not be safely displayed."
+      )).className = "empty";
+      return;
+    }
+
+    const paragraph = document.createElement("p");
+    paragraph.style.lineHeight = "2";
+    let cursor = 0;
+    valid.forEach(span => {
+      if (span.start < cursor) return;
+      paragraph.appendChild(document.createTextNode(originalText.slice(cursor, span.start)));
+      const mark = document.createElement("mark");
+      mark.textContent = originalText.slice(span.start, span.end);
+      mark.style.cssText = "background:#7f1d1d;color:#fecaca;padding:3px;border-radius:4px";
+      paragraph.appendChild(mark);
+      cursor = span.end;
+    });
+    paragraph.appendChild(document.createTextNode(originalText.slice(cursor)));
+    container.appendChild(paragraph);
+  }
+
+  function renderHiringIntent(data) {
+    const container = document.getElementById("hiringIntent");
+    container.replaceChildren();
+    const score = data.hiring_intent_score;
+    const heading = safeText("strong",
+      `Hiring-intent score: ${score == null ? "Unavailable" : score}`
+    );
+    container.appendChild(heading);
+
+    const reasons = Array.isArray(data.hiring_intent_reasons)
+      ? data.hiring_intent_reasons : [];
+    if (!reasons.length) {
+      const p = safeText("p", "No additional hiring-intent explanation was returned.");
+      p.className = "empty";
+      container.appendChild(p);
+      return;
+    }
+
+    reasons.forEach(reason => {
+      const message = typeof reason === "string"
+        ? reason
+        : (reason.description || reason.reason || reason.signal || JSON.stringify(reason));
+      const p = safeText("p", `• ${message}`);
+      p.className = "empty";
+      p.style.marginTop = "9px";
+      container.appendChild(p);
+    });
+  }
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const text = textInput.value.trim();
+
+    if (!text) {
+      statusBox.textContent = "Please paste a job description first.";
+      statusBox.className = "error";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Analyzing…";
+    statusBox.textContent = "Checking the posting against the detection pipeline…";
+    statusBox.className = "muted";
+    results.style.display = "none";
+
+    try {
+      const response = await fetch("/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          platform: document.getElementById("platform").value,
+          requester_id: "web-demo",
+          save_report: false
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || `API request failed (${response.status})`);
+      }
+
+      const risk = String(data.risk_level || "Unknown").toLowerCase();
+      const badge = document.getElementById("riskBadge");
+      badge.textContent = `${risk.toUpperCase()} RISK`;
+      badge.className = "badge " +
+        (risk === "high" ? "risk-high" :
+         risk === "medium" ? "risk-medium" :
+         risk === "low" ? "risk-low" : "");
+
+      document.getElementById("finalScore").textContent =
+        data.final_score == null ? "Unavailable" : Number(data.final_score).toFixed(2);
+      document.getElementById("mlProbability").textContent =
+        data.ml_probability == null ? "Unavailable" :
+        `${(Number(data.ml_probability) * 100).toFixed(1)}%`;
+      document.getElementById("confidence").textContent =
+        data.confidence == null ? "Unavailable" : `${data.confidence}/100`;
+      document.getElementById("resultSubtitle").textContent =
+        `Rule score: ${data.rule_score ?? "N/A"} · Analysis completed`;
+
+      renderReasons(data);
+      renderHighlights(data, text);
+      renderHiringIntent(data);
+
+      results.style.display = "block";
+      statusBox.textContent = "Analysis completed.";
+      statusBox.className = "muted";
+      results.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      statusBox.textContent =
+        `Could not analyze this posting: ${error.message}. Confirm that the API is running, then try again.`;
+      statusBox.className = "error";
+    } finally {
+      button.disabled = false;
+      button.textContent = "Analyze job posting →";
+    }
+  });
+</script>
+</body>
+</html>
