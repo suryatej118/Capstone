@@ -9,3 +9,4 @@ python-dotenv
 joblib
 requests
 ddgs
+firebase-admin

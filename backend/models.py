@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
     DateTime,
+    ForeignKey,
     Float,
     Integer,
     String,
@@ -13,12 +14,26 @@ from sqlalchemy.types import JSON
 from backend.database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    firebase_uid = Column(String(128), nullable=False, unique=True, index=True)
+    email = Column(String(320), nullable=False, index=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
 class Scan(Base):
     __tablename__ = "scans"
 
     id = Column(Integer, primary_key=True, index=True)
 
     requester_id = Column(String(255), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     platform = Column(String(100), nullable=True)
 
     # Original submitted job message.

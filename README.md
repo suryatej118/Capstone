@@ -209,9 +209,22 @@ FRONTEND_URL=http://localhost:5173
 ```env
 # Leave empty for local development when using the Vite proxy.
 VITE_API_BASE_URL=
+
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
 ```
 
 For production, configure the frontend API URL and backend database connection through the respective hosting providers' environment-variable settings.
+
+Firebase Authentication is required for application routes and protected API
+endpoints. The frontend uses the Firebase Web App values above. The backend
+requires `FIREBASE_PROJECT_ID` and a Render secret named
+`FIREBASE_SERVICE_ACCOUNT_JSON` containing the Firebase Admin service-account
+JSON. Never commit that JSON or place it in frontend variables.
 
 Optional third-party integrations may require API credentials. Their absence can make individual enrichment checks unavailable without necessarily preventing the core analysis.
 

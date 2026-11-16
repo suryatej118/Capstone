@@ -58,7 +58,8 @@ function Landing() {
           <a href="/history">History</a>
           <a className="landing-nav-scroll-link" href="#how-it-works">How it works</a>
           <a className="landing-nav-scroll-link" href="#why-radar">Why Radar</a>
-          <a className="landing-nav-cta" href="/analyzer">Analyze a posting <ArrowRight size={15} /></a>
+          <a href="/login">Sign in</a>
+          <a className="landing-nav-cta" href="/register">Create account <ArrowRight size={15} /></a>
         </div>
       </nav>
 
@@ -72,7 +73,7 @@ function Landing() {
               transparent signals, not black-box guesses.
             </p>
             <div className="landing-actions">
-              <a className="primary-action" href="/analyzer">Check a job posting <ArrowRight size={17} /></a>
+              <a className="primary-action" href="/register">Check a job posting <ArrowRight size={17} /></a>
               <a className="secondary-action" href="#how-it-works">See how it works <ChevronDown size={16} /></a>
             </div>
             <div className="landing-proof">

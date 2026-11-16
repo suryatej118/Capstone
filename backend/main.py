@@ -10,7 +10,8 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from backend.database import Base, engine, get_db
-from backend.models import Scan
+from backend.auth import get_current_user
+from backend.models import Scan, User
 from pydantic import BaseModel, Field
 
 from backend.analyzer.hiring_intent import compute_hiring_intent
@@ -56,7 +57,7 @@ if allowed_origins:
         allow_origins=allowed_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 Base.metadata.create_all(bind=engine)
 
@@ -178,6 +179,35 @@ def apply_high_severity_rule_override(
 
     return "High"
 
+
+def get_or_create_user(db: Session, token: dict) -> User:
+    firebase_uid = token.get("uid")
+    email = token.get("email")
+
+    if not firebase_uid or not email:
+        raise HTTPException(
+            status_code=401,
+            detail="Authenticated user identity is incomplete.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.firebase_uid == firebase_uid)
+        .first()
+    )
+
+    if user is None:
+        user = User(firebase_uid=firebase_uid, email=email)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif user.email != email:
+        user.email = email
+        db.commit()
+
+    return user
+
+
 @app.get("/", include_in_schema=False)
 def home():
     frontend_file = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
@@ -192,9 +222,12 @@ def get_scan_history(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
+    user = get_or_create_user(db, current_user)
     scans = (
         db.query(Scan)
+        .filter(Scan.user_id == user.id)
         .order_by(Scan.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -202,7 +235,7 @@ def get_scan_history(
     )
 
     return {
-        "total": db.query(Scan).count(),
+        "total": db.query(Scan).filter(Scan.user_id == user.id).count(),
         "scans": [
             {
                 "id": scan.id,
@@ -225,8 +258,14 @@ def get_scan_history(
 def get_scan_report(
     scan_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    user = get_or_create_user(db, current_user)
+    scan = (
+        db.query(Scan)
+        .filter(Scan.id == scan_id, Scan.user_id == user.id)
+        .first()
+    )
 
     if scan is None:
         raise HTTPException(
@@ -257,23 +296,28 @@ def get_scan_report(
 
 
 @app.get("/dashboard/stats")
-def get_dashboard_stats(db: Session = Depends(get_db)):
-    total = db.query(Scan).count()
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    user = get_or_create_user(db, current_user)
+    user_scans = db.query(Scan).filter(Scan.user_id == user.id)
+    total = user_scans.count()
 
-    high = db.query(Scan).filter(
+    high = user_scans.filter(
         Scan.risk_level == "High"
     ).count()
 
-    medium = db.query(Scan).filter(
+    medium = user_scans.filter(
         Scan.risk_level == "Medium"
     ).count()
 
-    low = db.query(Scan).filter(
+    low = user_scans.filter(
         Scan.risk_level == "Low"
     ).count()
 
     recent = (
-        db.query(Scan)
+        user_scans
         .order_by(Scan.created_at.desc())
         .limit(5)
         .all()
@@ -303,7 +347,9 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 def analyze(
     request: AnalyzeRequest,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
+    user = get_or_create_user(db, current_user)
     # 1. Core rule analysis. Core analysis errors are intentionally not hidden.
     rule_score, triggered_rules = analyze_rules(request.text)
 
@@ -512,7 +558,8 @@ def analyze(
     # Save the completed analysis only when requested.
     if request.save_report:
         scan = Scan(
-            requester_id=request.requester_id,
+            requester_id=user.firebase_uid,
+            user_id=user.id,
             platform=request.platform,
             submitted_text=request.text,
             rule_score=rule_score,
