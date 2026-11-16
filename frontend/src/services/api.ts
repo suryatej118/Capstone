@@ -1,3 +1,5 @@
+import { auth } from "../firebase";
+
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || ""
 ).replace(/\/$/, "");
@@ -5,7 +7,6 @@ const API_BASE_URL = (
 export interface AnalyzeRequest {
   text: string;
   platform: string | null;
-  requester_id: string;
   save_report: boolean;
 }
 
@@ -44,23 +45,48 @@ export interface AnalyzeResponse {
   suggested_templates: Record<string, unknown>[];
 }
 
+async function authenticatedHeaders(
+  headers: Record<string, string> = {}
+) {
+  const token = await auth.currentUser?.getIdToken();
+
+  if (token) {
+    return { ...headers, Authorization: `Bearer ${token}` };
+  }
+
+  return headers;
+}
+
+async function ensureSuccessful(
+  response: Response,
+  operation: string
+) {
+  if (response.ok) return;
+
+  const errorBody = await response.text();
+  const detail =
+    response.status === 401
+      ? "Please sign in again to continue."
+      : response.status === 403
+        ? "You are not authorized to access this resource."
+        : errorBody || response.statusText;
+
+  throw new Error(`${operation} failed (${response.status}): ${detail}`);
+}
+
 export async function analyzeJob(
   payload: AnalyzeRequest
 ): Promise<AnalyzeResponse> {
+  const headers = await authenticatedHeaders({
+    "Content-Type": "application/json",
+  });
   const response = await fetch(`${API_BASE_URL}/analyze`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(
-      `Analysis failed (${response.status}): ${errorBody || response.statusText}`
-    );
-  }
+  await ensureSuccessful(response, "Analysis");
 
   return (await response.json()) as AnalyzeResponse;
 }
@@ -82,16 +108,12 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+  const response = await fetch(
+    `${API_BASE_URL}/dashboard/stats`,
+    { headers: await authenticatedHeaders() }
+  );
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(
-      `Dashboard request failed (${response.status}): ${
-        errorBody || response.statusText
-      }`
-    );
-  }
+  await ensureSuccessful(response, "Dashboard request");
 
   return (await response.json()) as DashboardStats;
 }
@@ -116,24 +138,17 @@ export async function getScans(
   offset = 0
 ): Promise<ScanHistoryResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/scans?limit=${limit}&offset=${offset}`
+    `${API_BASE_URL}/scans?limit=${limit}&offset=${offset}`,
+    { headers: await authenticatedHeaders() }
   );
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(
-      `Scan history request failed (${response.status}): ${
-        errorBody || response.statusText
-      }`
-    );
-  }
+  await ensureSuccessful(response, "Scan history request");
 
   return (await response.json()) as ScanHistoryResponse;
 }
 
 export interface ScanDetail {
   id: number;
-  requester_id: string;
   platform: string;
   submitted_text: string;
   rule_score: number;
@@ -152,16 +167,12 @@ export interface ScanDetail {
 export async function getScanDetails(
   scanId: number
 ): Promise<ScanDetail> {
-  const response = await fetch(`${API_BASE_URL}/scans/${scanId}`);
+  const response = await fetch(
+    `${API_BASE_URL}/scans/${scanId}`,
+    { headers: await authenticatedHeaders() }
+  );
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(
-      `Unable to retrieve scan (${response.status}): ${
-        errorBody || response.statusText
-      }`
-    );
-  }
+  await ensureSuccessful(response, "Unable to retrieve scan");
 
   return (await response.json()) as ScanDetail;
 }

@@ -647,7 +647,6 @@ export default function Analyzer() {
       const response = await analyzeJob({
         text: cleanedText,
         platform: platform || null,
-        requester_id: "web-demo",
         save_report: true,
       });
 

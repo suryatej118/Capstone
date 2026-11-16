@@ -118,6 +118,20 @@ a:focus-visible {
   font-size: 12px;
 }
 
+.shell-logout {
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--accent-hover);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.shell-logout:hover {
+  border-color: var(--accent);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;

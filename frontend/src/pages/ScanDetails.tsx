@@ -490,7 +490,7 @@ export default function ScanDetails() {
           </div>
           <div>
             <span>Requester ID</span>
-            <strong>{scan.requester_id || "Unavailable"}</strong>
+            <strong>Authenticated account</strong>
           </div>
         </div>
       </section>

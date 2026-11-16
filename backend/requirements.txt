@@ -8,4 +8,4 @@ psycopg[binary]
 python-dotenv
 joblib
 requests
-ddgs
+ddgsfirebase-admin

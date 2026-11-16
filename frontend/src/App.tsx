@@ -1,7 +1,15 @@
 import ScanDetails from "./pages/ScanDetails";
 import HistoryPage from "./pages/History";
 import Overview from "./pages/Overview";
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   LayoutDashboard,
   ScanSearch,
@@ -17,6 +25,12 @@ import MagnificationDock, {
 import "./index.css";
 import Analyzer from "./pages/Analyzer";
 import Landing from "./pages/Landing";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import { AuthProvider } from "./auth/AuthContext";
+import { ProtectedRoute, PublicOnlyRoute } from "./auth/guards";
+import { useAuth } from "./auth/useAuth";
 
 function PlaceholderPage({
   title,
@@ -35,13 +49,10 @@ function PlaceholderPage({
   );
 }
 
-function AppLayout() {
+function AuthenticatedShell() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  if (location.pathname === "/" || location.pathname === "/landing") {
-    return <Landing />;
-  }
+  const { user, logout } = useAuth();
 
   const items: DockItemData[] = [
     {
@@ -87,17 +98,38 @@ function AppLayout() {
         </div>
         <div className="system-status">
           <span className="status-dot" />
-          Detection system
+          {user?.email || "Authenticated"}
+          <button className="shell-logout" onClick={() => void logout()}>
+            Sign out
+          </button>
         </div>
       </header>
 
       <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/landing" element={<Landing />} />
+        <Outlet />
+      </main>
+
+      <MagnificationDock items={items} />
+    </div>
+  );
+}
+
+function AppLayout() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/landing" element={<Landing />} />
+      <Route element={<PublicOnlyRoute />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+      </Route>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AuthenticatedShell />}>
           <Route path="/dashboard" element={<Overview />} />
           <Route path="/analyzer" element={<Analyzer />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/history/:scanId" element={<ScanDetails />} />
           <Route
             path="/insights"
             element={
@@ -116,28 +148,19 @@ function AppLayout() {
               />
             }
           />
-          <Route
-            path="*"
-            element={
-              <PlaceholderPage
-                title="Page not found"
-                description="The page you're looking for doesn't exist."
-              />
-            }
-          />
-          <Route path="/history/:scanId" element={<ScanDetails />} />
-        </Routes>
-      </main>
-
-      <MagnificationDock items={items} />
-    </div>
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppLayout />
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppLayout />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
