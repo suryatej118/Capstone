@@ -24,21 +24,22 @@ def mock_enrichment(monkeypatch):
     monkeypatch.setattr(main, "extract_github_org", lambda text: None)
 
 
-def test_r01_payment_request_gets_high_risk_even_when_hybrid_score_is_low(
+def test_r01_payment_request_uses_hybrid_score_risk_band(
     monkeypatch,
 ):
-    """R01 must not be downgraded to Low by a low ML probability."""
+    """R01 is evidence for the hybrid score, not a separate risk policy."""
     mock_enrichment(monkeypatch)
     monkeypatch.setattr(
         main,
         "predict_scam_probability",
-        lambda text: 0.11260339987359708,
+        lambda text: 0.078,
     )
 
     text = (
         "Congratulations! You have been selected for a Software Developer "
-        "position. Pay a refundable registration fee of Rs. 2,000 today "
-        "to confirm your job. Immediate joining."
+        "position. There is a refundable registration and document-verification "
+        "fee of ₹1,499. Guaranteed placement within 7 days. "
+        "Apply immediately. Contact hr@example.com."
     )
 
     response = client.post(
@@ -55,8 +56,10 @@ def test_r01_payment_request_gets_high_risk_even_when_hybrid_score_is_low(
     data = response.json()
 
     assert data["final_score"] < 35
-    assert data["risk_level"] == "High"
+    assert data["risk_level"] == "Low"
     assert "R01" in {reason["rule_id"] for reason in data["reasons"]}
+    assert data["critical_warnings"][0]["code"] == "R01"
+    assert "₹1,499" in data["critical_warnings"][0]["evidence"]
 
 
 def test_non_r01_low_risk_listing_keeps_standard_risk_band(monkeypatch):
@@ -79,12 +82,12 @@ def test_non_r01_low_risk_listing_keeps_standard_risk_band(monkeypatch):
     data = response.json()
 
     assert data["final_score"] == 6.0
-    assert data["risk_level"] == "Medium"
+    assert data["risk_level"] == "Low"
     assert data["reasons"] == []
 
 
-def test_r01_override_does_not_change_calculated_final_score(monkeypatch):
-    """The safeguard changes classification, not the numeric hybrid score."""
+def test_r01_does_not_change_calculated_final_score(monkeypatch):
+    """R01 contributes through rules while classification follows the score."""
     mock_enrichment(monkeypatch)
     monkeypatch.setattr(
         main,
@@ -111,7 +114,7 @@ def test_r01_override_does_not_change_calculated_final_score(monkeypatch):
         2,
     )
     assert data["final_score"] == expected_score
-    assert data["risk_level"] == "High"
+    assert data["risk_level"] == "Low"
 
 
 
@@ -138,4 +141,4 @@ def test_safety_warning_about_recruitment_fees_does_not_force_high_risk(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["risk_level"] == "Medium"
+    assert data["risk_level"] == "Low"

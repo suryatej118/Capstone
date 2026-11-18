@@ -1,5 +1,4 @@
 import logging
-import re
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
@@ -17,6 +16,7 @@ from pydantic import BaseModel, Field
 from backend.analyzer.hiring_intent import compute_hiring_intent
 from backend.analyzer.rules import analyze_rules
 from backend.analyzer.scoring import calculate_final_score, get_risk_level
+from backend.analyzer.warnings import get_critical_warnings
 from backend.enrichment.careers import detect_careers_page
 from backend.enrichment.company import extract_company_name
 from backend.enrichment.domain import (
@@ -97,6 +97,7 @@ class AnalyzeResponse(BaseModel):
     hiring_intent_reasons: list[dict]
     suggested_templates: list[dict]
     company_website: dict
+    critical_warnings: list[dict] = Field(default_factory=list)
 
 
 def unknown_github_result():
@@ -143,41 +144,6 @@ def calculate_confidence(
         + (min(100.0, max(0.0, retrieval_strength)) * 0.1)
     )
     return int(round(min(100.0, max(0.0, confidence))))
-
-
-def apply_high_severity_rule_override(
-    calculated_risk_level: str,
-    triggered_rules: list,
-    text: str,
-) -> str:
-    """
-    Enforce a minimum High classification for R01 payment-demand matches.
-
-    Clear safety warnings/negations are excluded to reduce false positives.
-    The numerical hybrid score remains unchanged.
-    """
-    has_r01 = any(
-        getattr(rule, "rule_id", None) == "R01"
-        for rule in triggered_rules
-    )
-    if not has_r01:
-        return calculated_risk_level
-
-    safety_warning_patterns = (
-        r"\bnever\s+(?:pay|send|transfer|deposit|provide)\b",
-        r"\bdo\s+not\s+(?:pay|send|transfer|deposit|provide)\b",
-        r"\bdon't\s+(?:pay|send|transfer|deposit|provide)\b",
-        r"\bavoid\s+paying\b",
-        r"\bno\s+(?:application|registration|recruitment|interview)?\s*"
-        r"fee\s+(?:is\s+)?(?:required|necessary|needed)\b",
-    )
-    if any(
-        re.search(pattern, text, re.IGNORECASE)
-        for pattern in safety_warning_patterns
-    ):
-        return calculated_risk_level
-
-    return "High"
 
 
 def get_or_create_user(db: Session, token: dict) -> User:
@@ -356,27 +322,11 @@ def analyze(
     # 2. ML prediction. The predictor may return None if the model is unavailable.
     ml_probability = predict_scam_probability(request.text)
 
-    # 3. Calculate the original hybrid score and its standard risk band.
-    # The targeted R01 safeguard changes classification only, not the score.
-    
+    # 3. Calculate the hybrid score once, then derive risk classification
+    # from that score. This keeps the displayed label consistent with the
+    # persisted and API-reported final score.
     final_score = calculate_final_score(rule_score, ml_probability)
-
-    # Candidate probability-based risk policy.
-    # Preserve the existing score and R01 safeguard.
-    if ml_probability is None:
-        calculated_risk_level = get_risk_level(final_score)
-    elif ml_probability >= 0.20:
-        calculated_risk_level = "High"
-    elif ml_probability >= 0.10:
-        calculated_risk_level = "Medium"
-    else:
-        calculated_risk_level = "Low"
-
-    risk_level = apply_high_severity_rule_override(
-        calculated_risk_level,
-        triggered_rules,
-        request.text,
-    )
+    risk_level = get_risk_level(final_score)
 
 
     # 4. Build explanations and highlighted spans.
@@ -399,6 +349,7 @@ def analyze(
         for rule in triggered_rules
         if rule.start >= 0 and rule.end >= 0
     ]
+    critical_warnings = get_critical_warnings(triggered_rules)
 
     # 5. Prepare optional enrichment signals. Individual failures must not
     # prevent the core analysis from returning a response.
@@ -553,6 +504,7 @@ def analyze(
         hiring_intent_reasons=hiring_reasons,
         suggested_templates=[],
         company_website=company_website,
+        critical_warnings=critical_warnings,
     )
 
     # Save the completed analysis only when requested.

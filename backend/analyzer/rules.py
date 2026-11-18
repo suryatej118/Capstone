@@ -58,7 +58,7 @@ R01_PATTERN = (
 
     # Generic payment instruction and recruitment fee.
     r"\b(?:pay|payment|transfer|send|deposit|purchase|buy|remit|wire)\b"
-    r".{0,100}\b(?:fee|charge|deposit|payment|registration|interview|"
+    r".{0,100}\b(?:fee|charge|deposit|registration|interview|"
     r"shortlisting|processing|verification|activation|equipment|shipping|"
     r"courier|training|certificate|access|booking|security)\b"
 
@@ -296,6 +296,8 @@ def analyze_rules(
     # not to disclose sensitive information.
     warning_patterns = [
         r"\bnever\s+(?:share|send|disclose|reveal|provide|give)\b",
+        r"\bnever\s+(?:transfer|pay|send|share).{0,120}"
+        r"\b(?:share|send|disclose|provide|give)\b",
         r"\bdo\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
         r"\bdon't\s+(?:share|send|disclose|reveal|provide|give)\b",
         r"\bshould\s+never\s+(?:share|send|disclose|reveal|provide|give)\b",

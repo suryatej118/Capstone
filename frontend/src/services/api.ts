@@ -43,6 +43,14 @@ export interface AnalyzeResponse {
   hiring_intent_score: number;
   hiring_intent_reasons: Record<string, unknown>[];
   suggested_templates: Record<string, unknown>[];
+  critical_warnings?: CriticalWarning[];
+}
+
+export interface CriticalWarning {
+  code: string;
+  title: string;
+  message: string;
+  evidence: string;
 }
 
 async function authenticatedHeaders(
