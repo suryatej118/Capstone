@@ -1,37 +1,30 @@
+
 from backend.analyzer.hiring_intent import compute_hiring_intent
 from backend.analyzer.hiring_intent import _detect_payment_request
+
 
 def test_clear_legit_case():
     signals = {
         "company_domain": "acme.com",
         "company_domain_verified": True,
         "corporate_domain_present": True,
-
         "careers_page_present": True,
         "careers_page_verified": True,
-
         "recruiter_email": "hr@acme.com",
         "opencorporates_match": True,
-
         "active_job_postings_count": 6,
-
         "github_org": {
             "exists": True,
             "recent_activity": True,
             "website": "https://acme.com",
         },
         "github_org_verified": True,
-
         "domain_age_years": 6,
-
         "search_presence_hiring": 8,
         "search_presence_verified": True,
     }
 
-    score, reasons = compute_hiring_intent(
-        "We are hiring",
-        signals,
-    )
+    score, reasons = compute_hiring_intent("We are hiring", signals)
 
     assert score >= 80
 
@@ -39,10 +32,7 @@ def test_clear_legit_case():
 def test_obvious_scam_fee_request():
     text = "Pay a registration fee of 50 USD to apply"
 
-    score, reasons = compute_hiring_intent(
-        text,
-        {},
-    )
+    score, reasons = compute_hiring_intent(text, {})
 
     assert score == 0
 
@@ -52,16 +42,12 @@ def test_pending_opencorporates_gives_zero_score():
         "opencorporates_match": "pending",
     }
 
-    score, reasons = compute_hiring_intent(
-        "We are hiring",
-        signals,
-    )
+    score, reasons = compute_hiring_intent("We are hiring", signals)
 
     assert score == 0
 
     oc_reason = next(
-        reason
-        for reason in reasons
+        reason for reason in reasons
         if reason["signal"] == "opencorporates_match"
     )
 
@@ -77,14 +63,10 @@ def test_domain_age_mapping():
         "domain_age_years": 6,
     }
 
-    score, reasons = compute_hiring_intent(
-        "We are hiring",
-        signals,
-    )
+    score, reasons = compute_hiring_intent("We are hiring", signals)
 
     age_reason = next(
-        reason
-        for reason in reasons
+        reason for reason in reasons
         if reason["signal"] == "domain_age_years"
     )
 
@@ -99,14 +81,10 @@ def test_active_job_posting_mapping():
         "active_job_postings_count": 5,
     }
 
-    score, reasons = compute_hiring_intent(
-        "We are hiring",
-        signals,
-    )
+    score, reasons = compute_hiring_intent("We are hiring", signals)
 
     jobs_reason = next(
-        reason
-        for reason in reasons
+        reason for reason in reasons
         if reason["signal"] == "active_job_postings_count"
     )
 
@@ -120,17 +98,16 @@ def test_confirmed_opencorporates_match_adds_expected_points():
     )
 
     oc_reason = next(
-        reason
-        for reason in reasons
+        reason for reason in reasons
         if reason["signal"] == "opencorporates_match"
     )
 
-    assert oc_reason["score"] == 0
-    assert oc_reason["confidence"] == 80
-    assert score == 0
+    assert oc_reason["score"] == 15
+    assert oc_reason["confidence"] == 95
+    assert score == 15
 
 
-def test_maximum_score_is_85():
+def test_maximum_score_is_100():
     signals = {
         "company_domain": "acme.com",
         "company_domain_verified": True,
@@ -151,12 +128,9 @@ def test_maximum_score_is_85():
         "search_presence_verified": True,
     }
 
-    score, reasons = compute_hiring_intent(
-        "We are hiring",
-        signals,
-    )
+    score, reasons = compute_hiring_intent("We are hiring", signals)
 
-    assert score == 85
+    assert score == 100
 
 
 def test_gmail_recruiter_email_does_not_count_as_corporate_domain():
@@ -178,10 +152,10 @@ def test_gmail_recruiter_email_does_not_count_as_corporate_domain():
 
     assert signals_by_name["corporate_domain_present"]["value"] is False
     assert signals_by_name["corporate_domain_present"]["score"] == 0
-
     assert signals_by_name["recruiter_email_corporate"]["score"] == 0
 
-def test_unverified_signals_do_not_increase_hiring_intent():
+
+def test_unverified_domain_signals_do_not_score_but_exact_registration_does():
     signals = {
         "company_domain": "example.com",
         "corporate_domain_present": True,
@@ -198,15 +172,14 @@ def test_unverified_signals_do_not_increase_hiring_intent():
         "search_presence_hiring": 8,
     }
 
-    score, reasons = compute_hiring_intent(
-        "We are hiring",
-        signals,
-    )
+    score, reasons = compute_hiring_intent("We are hiring", signals)
 
-    assert score == 0
+    assert score == 15
 
     for reason in reasons:
-        if reason["signal"] != "negative_penalty":
+        if reason["signal"] == "opencorporates_match":
+            assert reason["score"] == 15
+        elif reason["signal"] != "negative_penalty":
             assert reason["score"] == 0
 
 
@@ -235,6 +208,7 @@ def test_no_payment_required_is_not_penalized():
         "at any stage of the recruitment process. "
         "Salary: Rs. 20,000 per month."
     )
+
     assert _detect_payment_request(text) is False
 
 
@@ -243,6 +217,7 @@ def test_explicit_registration_fee_is_detected():
         "A refundable registration fee of Rs. 1,999 "
         "is required before joining."
     )
+
     assert _detect_payment_request(text) is True
 
 
@@ -251,6 +226,7 @@ def test_onboarding_fee_is_detected():
         "Shortlisted candidates must pay a refundable "
         "onboarding and document verification fee of Rs. 2,499."
     )
+
     assert _detect_payment_request(text) is True
 
 
@@ -259,4 +235,24 @@ def test_salary_alone_is_not_a_payment_request():
         "Salary: Rs. 6-8 LPA depending on skills "
         "and interview performance."
     )
+
     assert _detect_payment_request(text) is False
+
+
+def test_fuzzy_opencorporates_match_does_not_add_points():
+    score, reasons = compute_hiring_intent(
+        "We are hiring",
+        {
+            "opencorporates_match": None,
+            "opencorporates_match_type": "fuzzy",
+        },
+    )
+
+    oc_reason = next(
+        item for item in reasons
+        if item["signal"] == "opencorporates_match"
+    )
+
+    assert oc_reason["value"] == "fuzzy"
+    assert oc_reason["score"] == 0
+    assert score == 0

@@ -358,7 +358,7 @@ def analyze(
 
     # 3. Calculate the original hybrid score and its standard risk band.
     # The targeted R01 safeguard changes classification only, not the score.
-    
+
     final_score = calculate_final_score(rule_score, ml_probability)
 
     # Candidate probability-based risk policy.
@@ -431,6 +431,14 @@ def analyze(
         "reason": "company_name_not_detected",
     }
 
+    candidate_company_domain = (
+        company_website.get("candidate_domain")
+        if isinstance(company_website, dict)
+        else None
+    )
+
+    signals["company_domain_candidate"] = candidate_company_domain
+
     # 6. Domain age lookup.
     # Extracted URLs are unverified. Do not use their domains for company
     # domain-age scoring until ownership has been independently established.
@@ -496,23 +504,44 @@ def analyze(
     signals["company_domain"] = None
     signals["company_domain_verified"] = False
 
-    # 10. OpenCorporates verification. Failed/unavailable lookups stay pending.
-    signals["opencorporates_match"] = "pending"
+    # 10. OpenCorporates verification.
+    # Only an exact name match counts as confirmed registration evidence.
+    signals["opencorporates_match"] = None
+    signals["opencorporates_match_type"] = "pending"
+
     if company_name:
         retrieval_checks += 1
         try:
             oc_result = match_company_name(company_name)
 
             if isinstance(oc_result, dict):
-                match_value = oc_result.get("matched", "pending")
-                signals["opencorporates_match"] = match_value
+                match_type = oc_result.get("match_type", "pending")
+                matched = oc_result.get("matched")
 
-                if match_value != "pending" and match_value is not None:
+                signals["opencorporates_match_type"] = match_type
+
+                if match_type == "exact" and matched is True:
+                    signals["opencorporates_match"] = True
                     successful_retrievals += 1
+                elif match_type in ("no_match", "below_threshold"):
+                    signals["opencorporates_match"] = False
+                    successful_retrievals += 1
+                else:
+                    # Fuzzy or unavailable evidence is not an exact match.
+                    signals["opencorporates_match"] = None
+
             else:
-                logger.warning("OpenCorporates returned an unexpected result")
+                logger.warning(
+                    "OpenCorporates returned an unexpected result"
+                )
+
         except Exception:
             logger.exception("OpenCorporates lookup failed")
+
+            # Preserve unknown status when the external service is unavailable.
+            signals["opencorporates_match"] = None
+            signals["opencorporates_match_type"] = "pending"
+
 
     # 11. GitHub organization activity.
     # An organization mentioned in a job message is not automatically
