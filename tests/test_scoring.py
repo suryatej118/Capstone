@@ -40,6 +40,12 @@ def test_invalid_ml_probability_is_rejected(ml_probability):
         calculate_final_score(20, ml_probability)
 
 
+@pytest.mark.parametrize("final_score", [float("inf"), float("-inf")])
+def test_infinite_risk_scores_are_rejected(final_score):
+    with pytest.raises(ValueError):
+        get_risk_level(final_score)
+
+
 def test_original_production_reproduction():
     final_score = calculate_final_score(20, 0.078)
 

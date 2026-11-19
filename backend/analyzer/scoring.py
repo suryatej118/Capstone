@@ -1,3 +1,6 @@
+import math
+
+
 LOW_MAX_SCORE = 34.0
 MEDIUM_MAX_SCORE = 64.0
 
@@ -53,6 +56,9 @@ def get_risk_level(final_score: float) -> str:
 
     if final_score != final_score:
         raise ValueError("Final score must be a number from 0 to 100.")
+
+    if not math.isfinite(final_score):
+        raise ValueError("Final score must be a finite number from 0 to 100.")
 
     final_score = min(100.0, max(0.0, final_score))
 

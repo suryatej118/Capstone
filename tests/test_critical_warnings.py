@@ -205,3 +205,136 @@ def test_real_rules_preserve_exact_matched_evidence(text, rule_id):
     warnings = get_critical_warnings([rule])
     assert len(warnings) == 1
     assert warnings[0]["evidence"] == rule.span
+
+
+def test_r01_negative_instruction_does_not_create_warning():
+    _, triggered_rules = analyze_rules("Never pay a registration fee to apply.")
+
+    assert get_critical_warnings(triggered_rules) == []
+
+
+def test_genuine_registration_fee_still_creates_r01_warning():
+    text = "Pay a registration fee of Rs. 2,499."
+    _, triggered_rules = analyze_rules(text)
+    r01 = next(rule for rule in triggered_rules if rule.rule_id == "R01")
+
+    warnings = get_critical_warnings([r01])
+
+    assert warnings[0]["code"] == "R01"
+    assert text[r01.start:r01.end] == warnings[0]["evidence"]
+
+
+def test_destination_only_request_does_not_create_r01_warning():
+    text = "Send the payment to UPI ID: merchant@okaxis"
+    _, triggered_rules = analyze_rules(text)
+
+    assert not any(rule.rule_id == "R01" for rule in triggered_rules)
+    warnings = get_critical_warnings(triggered_rules)
+
+    assert not any(warning["code"] == "R01" for warning in warnings)
+    assert any(warning["code"] == "R03" for warning in warnings)
+
+
+def test_r01_newline_transfer_does_not_create_r01_warning():
+    text = (
+        "Never pay a registration fee\n"
+        "Applicants must deposit ₹1,499 to proceed."
+    )
+    _, triggered_rules = analyze_rules(text)
+    warnings = get_critical_warnings(triggered_rules)
+
+    assert not any(warning["code"] == "R01" for warning in warnings)
+
+
+def test_r01_multiple_negative_instructions_create_no_warning():
+    text = (
+        "Never pay a registration fee. "
+        "Candidates should not transfer money to recruiters."
+    )
+
+    _, triggered_rules = analyze_rules(text)
+
+    assert get_critical_warnings(triggered_rules) == []
+
+
+def test_r02_warning_contains_exact_bank_request_after_disclaimer():
+    text = (
+        "Never share your OTP with anyone. "
+        "To process payroll, send your bank account number to the recruiter."
+    )
+    _, triggered_rules = analyze_rules(text)
+    r02 = next(rule for rule in triggered_rules if rule.rule_id == "R02")
+
+    warnings = get_critical_warnings([r02])
+
+    assert warnings[0]["evidence"] == r02.span
+    assert text[r02.start:r02.end] == warnings[0]["evidence"]
+
+
+def test_r02_same_sentence_contrast_creates_warning():
+    text = (
+        "Never share your OTP, but send your bank account number "
+        "to the recruiter."
+    )
+    _, triggered_rules = analyze_rules(text)
+    r02 = next(rule for rule in triggered_rules if rule.rule_id == "R02")
+
+    warnings = get_critical_warnings([r02])
+
+    assert warnings[0]["evidence"] == r02.span
+    assert text[r02.start:r02.end] == warnings[0]["evidence"]
+
+
+def test_r02_disclaimer_only_creates_no_warning():
+    _, triggered_rules = analyze_rules(
+        "Never share your OTP or bank account details with anyone."
+    )
+
+    assert get_critical_warnings(triggered_rules) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "evidence"),
+    [
+        (
+            "Never share your OTP, but send your bank account number "
+            "to the recruiter.",
+            "send your bank account number",
+        ),
+        (
+            "Never share your OTP. However, provide your bank account "
+            "number to HR.",
+            "provide your bank account number",
+        ),
+        (
+            "Do not share your password, but send your Aadhaar details "
+            "to the recruiter.",
+            "send your Aadhaar",
+        ),
+    ],
+)
+def test_r02_mixed_disclaimer_generates_warning_for_genuine_request(
+    text,
+    evidence,
+):
+    _, triggered_rules = analyze_rules(text)
+    r02 = next(rule for rule in triggered_rules if rule.rule_id == "R02")
+
+    warnings = get_critical_warnings([r02])
+
+    assert warnings[0]["evidence"] == evidence
+    assert text[r02.start:r02.end] == evidence
+
+
+def test_r02_warning_survives_following_safety_disclaimer():
+    text = (
+        "Send your bank account number to the recruiter. "
+        "Never share your OTP with anyone."
+    )
+    _, triggered_rules = analyze_rules(text)
+    r02 = next(rule for rule in triggered_rules if rule.rule_id == "R02")
+
+    warnings = get_critical_warnings([r02])
+
+    assert warnings[0]["evidence"] == r02.span
+    assert text[r02.start:r02.end] == warnings[0]["evidence"]
