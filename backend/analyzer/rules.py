@@ -58,7 +58,7 @@ R01_PATTERN = (
 
     # Generic payment instruction and recruitment fee.
     r"\b(?:pay|payment|transfer|send|deposit|purchase|buy|remit|wire)\b"
-    r".{0,100}\b(?:fee|charge|deposit|payment|registration|interview|"
+    r".{0,100}\b(?:fee|charge|deposit|registration|interview|"
     r"shortlisting|processing|verification|activation|equipment|shipping|"
     r"courier|training|certificate|access|booking|security)\b"
 
@@ -78,11 +78,6 @@ R01_PATTERN = (
     r"\b(?:gift cards?|vouchers?)\b.{0,80}\b"
     r"(?:redeem|redemption codes?|send|share|payment)\b"
 
-    r"|"
-
-    r"\b(?:pay|transfer|send)\b.{0,80}\b"
-    r"(?:upi|personal account|personal wallet|private account|"
-    r"recruiter'?s account)\b"
     r")"
 )
 
@@ -101,8 +96,8 @@ def match_r01(text: str) -> Optional[re.Match]:
     masked_text = list(text)
 
     negative_pattern = re.compile(
-        r"(?i)(?:^|(?<=[.!?;])\s*)"
-        r"[^.!?;]*(?:"
+        r"(?i)(?:^|(?<=[.!?;\n])\s*)"
+        r"[^.!?;\n]*(?:"
         r"\bno\s+(?:registration\s+)?(?:fee|payment|charge)\b"
         r"|"
         r"\b(?:fee|payment|charge)\s+is\s+not\s+required\b"
@@ -110,7 +105,11 @@ def match_r01(text: str) -> Optional[re.Match]:
         r"\bnot\s+required\s+to\s+pay\b"
         r"|"
         r"\bno\s+payment\s+is\s+required\b"
-        r")[^.!?;]*(?:[.!?;]|$)"
+        r"|"
+        r"\b(?:never|should\s+never|do\s+not|don't|should\s+not)\s+"
+        r"(?:\w+\s+){0,4}"
+        r"(?:pay|transfer|send|deposit|remit)\b"
+        r")[^.!?;\n]*(?:[.!?;\n]|$)"
     )
 
     for negative_match in negative_pattern.finditer(text):
@@ -153,14 +152,65 @@ R02_PATTERN = (
     r"\b(?:"
     r"send|share|provide|submit|reveal|disclose|tell|forward|"
     r"enter|text|message|email|upload"
-    r")\b.{0,100}\b(?:"
+    r")\b[^.!?,;:?\n]{0,100}?\b(?:"
     r"aadhaar|pan|otp|one[-\s]?time password|"
-    r"bank account|ifsc|account no|account number|"
+    r"bank account(?:\s+number)?|ifsc|account no|account number|"
     r"banking password|online banking password|"
     r"debit card cvv|card security code|"
     r"cvv|upi pin|bank password"
     r")\b"
 )
+
+R02_WARNING_PATTERNS = [
+    r"\bnever\s+(?:share|send|disclose|reveal|provide|give)\b",
+    r"\bnever\s+(?:transfer|pay|send|share).{0,120}"
+    r"\b(?:share|send|disclose|provide|give)\b",
+    r"\bdo\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
+    r"\bdon't\s+(?:share|send|disclose|reveal|provide|give)\b",
+    r"\bshould\s+never\s+(?:share|send|disclose|reveal|provide|give)\b",
+    r"\bshould\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
+]
+
+
+def _is_sensitive_warning(text: str, match: re.Match) -> bool:
+    sentence_start = max(
+        text.rfind(separator, 0, match.start())
+        for separator in ".!?;\n"
+    ) + 1
+    sentence_end_candidates = [
+        text.find(separator, match.end())
+        for separator in ".!?;\n"
+        if text.find(separator, match.end()) >= 0
+    ]
+    sentence_end = min(sentence_end_candidates, default=len(text))
+    context = text[sentence_start:sentence_end]
+    match_offset = match.start() - sentence_start
+    prefix = context[:match_offset]
+    negations = list(re.finditer(
+        r"\b(?:never|do\s+not|don't|should\s+never|should\s+not)\b",
+        prefix,
+        re.IGNORECASE,
+    ))
+    if not negations:
+        return False
+
+    last_negation = negations[-1]
+    between = prefix[last_negation.end():]
+    if re.search(r"\b(?:but|however|except|unless)\b", between, re.IGNORECASE):
+        return False
+
+    return any(
+        re.search(pattern, context, re.IGNORECASE)
+        for pattern in R02_WARNING_PATTERNS
+    )
+
+
+def match_r02(text: str) -> Optional[re.Match]:
+    """Return the first R02 request that is not a safety disclaimer."""
+    for match in re.finditer(R02_PATTERN, text, re.IGNORECASE):
+        if not _is_sensitive_warning(text, match):
+            return match
+    return None
 
 
 
@@ -171,7 +221,7 @@ R03_PATTERN = (
     r"(?:"
     # Payment instruction followed by a currency amount.
     r"\b(?:pay|transfer|send|deposit|remit)\b"
-    r"(?:\s+\w+){0,6}\s+"
+    r"(?:[^\S\r\n]+\w+){0,6}[^\S\r\n]+"
     r"(?:₹\s?|\bINR\s?|\bRs\.?\s?)"
     r"\d[\d,]*(?:\.\d{1,2})?"
     r"|"
@@ -236,7 +286,7 @@ RULES = [
         description="Request for sensitive personal/banking details",
         severity="HIGH",
         weight=30,
-        matcher=regex_match(R02_PATTERN),
+        matcher=match_r02,
     ),
     Rule(
         rule_id="R03",
@@ -292,30 +342,10 @@ def analyze_rules(
     triggered: list[TriggeredRule] = []
     score_sum = 0
 
-    # R02 should not trigger for a warning that merely tells readers
-    # not to disclose sensitive information.
-    warning_patterns = [
-        r"\bnever\s+(?:share|send|disclose|reveal|provide|give)\b",
-        r"\bdo\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
-        r"\bdon't\s+(?:share|send|disclose|reveal|provide|give)\b",
-        r"\bshould\s+never\s+(?:share|send|disclose|reveal|provide|give)\b",
-        r"\bshould\s+not\s+(?:share|send|disclose|reveal|provide|give)\b",
-    ]
-
-    sensitive_warning = any(
-        re.search(pattern, text, re.IGNORECASE)
-        for pattern in warning_patterns
-    )
-
     for rule in RULES:
         match = rule.matcher(text)
 
         if match:
-            # Suppress R02 only when the message is phrased as a
-            # direct safety warning against disclosing sensitive data.
-            if rule.rule_id == "R02" and sensitive_warning:
-                continue
-
             triggered.append(
                 TriggeredRule(
                     rule_id=rule.rule_id,

@@ -70,7 +70,7 @@ def test_analyze_endpoint_returns_expected_response(monkeypatch):
     assert data["rule_score"] == 20
     assert data["ml_probability"] == 0.5
     assert data["final_score"] == 38.0
-    assert data["risk_level"] == "High"
+    assert data["risk_level"] == "Medium"
     assert isinstance(data["reasons"], list)
     assert isinstance(data["highlighted_spans"], list)
     assert isinstance(data["hiring_intent_score"], int)
@@ -145,6 +145,9 @@ def test_interview_fee_triggers_payment_rule(monkeypatch):
     assert "R01" in triggered_ids
     assert data["rule_score"] > 0
     assert data["risk_level"] == "High"
+    assert "R01" in {
+        warning["code"] for warning in data["critical_warnings"]
+    }
 
 
 def test_otp_request_triggers_sensitive_data_rule(monkeypatch):
@@ -178,7 +181,7 @@ def test_highlighted_spans_match_original_message(monkeypatch):
         assert text[span["start"]:span["end"]] == span["text"]
 
 
-def test_final_score_is_unchanged_but_r01_can_override_risk_band(monkeypatch):
+def test_final_score_and_risk_band_use_the_same_hybrid_score(monkeypatch):
     mock_enrichment(monkeypatch)
     monkeypatch.setattr(main, "predict_scam_probability", lambda text: 0.8)
 
@@ -194,19 +197,11 @@ def test_final_score_is_unchanged_but_r01_can_override_risk_band(monkeypatch):
     )
     assert data["final_score"] == expected_score
 
-    # The score retains its original numerical band, but R01 is a safeguard.
-    triggered_ids = {reason["rule_id"] for reason in data["reasons"]}
-    if "R01" in triggered_ids:
-        assert data["risk_level"] == "High"
-    elif expected_score <= 34:
-        assert data["risk_level"] == "Low"
-    elif expected_score <= 64:
-        assert data["risk_level"] == "Medium"
-    else:
-        assert data["risk_level"] == "High"
+    assert data["risk_level"] == "High"
+    assert data["critical_warnings"]
 
 
-def test_r01_payment_request_gets_high_risk_when_ml_probability_is_low(
+def test_r01_payment_request_elevates_low_hybrid_score_to_high(
     monkeypatch,
 ):
     mock_enrichment(monkeypatch)
@@ -258,7 +253,7 @@ def test_non_r01_low_risk_listing_keeps_standard_risk_band(monkeypatch):
     data = response.json()
 
     assert data["final_score"] == 6.0
-    assert data["risk_level"] == "Medium"
+    assert data["risk_level"] == "Low"
     assert data["reasons"] == []
 
 
@@ -285,4 +280,4 @@ def test_safety_warning_about_recruitment_fees_does_not_force_high_risk(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["risk_level"] == "Medium"
+    assert data["risk_level"] == "Low"

@@ -1,3 +1,10 @@
+import math
+
+
+LOW_MAX_SCORE = 34.0
+MEDIUM_MAX_SCORE = 64.0
+
+
 def calculate_final_score(rule_score: int, ml_probability: float | None) -> float:
     """
     Calculate the hybrid scam score.
@@ -10,8 +17,22 @@ def calculate_final_score(rule_score: int, ml_probability: float | None) -> floa
     """
 
     if ml_probability is None:
-        return float(rule_score)
+        return float(min(100, max(0, rule_score)))
 
+    if isinstance(ml_probability, bool):
+        raise TypeError("ML probability must be a number between 0 and 1.")
+
+    try:
+        ml_probability = float(ml_probability)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(
+            "ML probability must be a number between 0 and 1."
+        ) from exc
+
+    if not 0.0 <= ml_probability <= 1.0:
+        raise ValueError("ML probability must be between 0 and 1.")
+
+    rule_score = min(100, max(0, rule_score))
     ml_score = ml_probability * 100
 
     final_score = (rule_score * 0.4) + (ml_score * 0.6)
@@ -28,10 +49,23 @@ def get_risk_level(final_score: float) -> str:
     65-100 -> High
     """
 
-    if final_score <= 34:
+    try:
+        final_score = float(final_score)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("Final score must be a number from 0 to 100.") from exc
+
+    if final_score != final_score:
+        raise ValueError("Final score must be a number from 0 to 100.")
+
+    if not math.isfinite(final_score):
+        raise ValueError("Final score must be a finite number from 0 to 100.")
+
+    final_score = min(100.0, max(0.0, final_score))
+
+    if final_score <= LOW_MAX_SCORE:
         return "Low"
 
-    if final_score <= 64:
+    if final_score <= MEDIUM_MAX_SCORE:
         return "Medium"
 
     return "High"

@@ -302,6 +302,30 @@ function AnalysisResults({
         </div>
       </div>
 
+      {(result.critical_warnings?.length ?? 0) > 0 && (
+        <section className="critical-warning-list" aria-label="Critical warnings">
+          <p className="critical-elevation">
+            Risk classification elevated to High because a critical warning
+            was detected. The hybrid score is unchanged.
+          </p>
+          {result.critical_warnings!.map((warning) => (
+            <article
+              className="critical-warning"
+              key={warning.code}
+            >
+              <AlertCircle size={20} aria-hidden="true" />
+              <div>
+                <strong>{warning.title}</strong>
+                <p>{warning.message}</p>
+                <blockquote>
+                  Evidence: <span>{warning.evidence}</span>
+                </blockquote>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
       <div className="results-metrics">
         <MetricCard
           label="HYBRID SCORE"
