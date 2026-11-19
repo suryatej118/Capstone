@@ -304,6 +304,10 @@ function AnalysisResults({
 
       {(result.critical_warnings?.length ?? 0) > 0 && (
         <section className="critical-warning-list" aria-label="Critical warnings">
+          <p className="critical-elevation">
+            Risk classification elevated to High because a critical warning
+            was detected. The hybrid score is unchanged.
+          </p>
           {result.critical_warnings!.map((warning) => (
             <article
               className="critical-warning"

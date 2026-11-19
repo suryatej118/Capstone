@@ -392,6 +392,14 @@
   gap: 10px;
 }
 
+.critical-elevation {
+  margin: 0;
+  color: #fecaca;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .critical-warning {
   display: flex;
   align-items: flex-start;

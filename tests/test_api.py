@@ -144,12 +144,10 @@ def test_interview_fee_triggers_payment_rule(monkeypatch):
 
     assert "R01" in triggered_ids
     assert data["rule_score"] > 0
-    if data["final_score"] <= 34:
-        assert data["risk_level"] == "Low"
-    elif data["final_score"] <= 64:
-        assert data["risk_level"] == "Medium"
-    else:
-        assert data["risk_level"] == "High"
+    assert data["risk_level"] == "High"
+    assert "R01" in {
+        warning["code"] for warning in data["critical_warnings"]
+    }
 
 
 def test_otp_request_triggers_sensitive_data_rule(monkeypatch):
@@ -199,15 +197,11 @@ def test_final_score_and_risk_band_use_the_same_hybrid_score(monkeypatch):
     )
     assert data["final_score"] == expected_score
 
-    if expected_score <= 34:
-        assert data["risk_level"] == "Low"
-    elif expected_score <= 64:
-        assert data["risk_level"] == "Medium"
-    else:
-        assert data["risk_level"] == "High"
+    assert data["risk_level"] == "High"
+    assert data["critical_warnings"]
 
 
-def test_r01_payment_request_uses_hybrid_score_when_ml_probability_is_low(
+def test_r01_payment_request_elevates_low_hybrid_score_to_high(
     monkeypatch,
 ):
     mock_enrichment(monkeypatch)
@@ -236,7 +230,7 @@ def test_r01_payment_request_uses_hybrid_score_when_ml_probability_is_low(
     data = response.json()
 
     assert data["final_score"] < 35
-    assert data["risk_level"] == "Low"
+    assert data["risk_level"] == "High"
     assert "R01" in {reason["rule_id"] for reason in data["reasons"]}
 
 

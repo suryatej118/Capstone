@@ -95,8 +95,8 @@ def mock_enrichment(monkeypatch):
         "expected_risk",
     ),
     [
-        (12.68, 0.078, 20, "R01", "pay a refundable fee of ₹1,499", "Low"),
-        (50.0, 0.5, 50, "R02", "send your bank account number", "Medium"),
+        (12.68, 0.078, 20, "R01", "pay a refundable fee of ₹1,499", "High"),
+        (50.0, 0.5, 50, "R02", "send your bank account number", "High"),
         (100.0, 1.0, 100, "R03", "transfer to UPI ID merchant@okaxis", "High"),
         (12.68, 0.078, 20, None, None, "Low"),
         (50.0, 0.5, 50, None, None, "Medium"),
@@ -153,6 +153,47 @@ def test_requested_risk_and_warning_combinations(
         assert evidence in text or evidence in " ".join(
             reason["span"] for reason in data["reasons"]
         )
+
+
+@pytest.mark.parametrize(
+    ("rule_id", "evidence"),
+    [
+        ("R01", "pay a refundable registration fee"),
+        ("R02", "send your bank account number"),
+        ("R03", "transfer Rs. 1999 to merchant@okaxis"),
+    ],
+)
+def test_each_critical_rule_elevates_low_score_to_high(
+    monkeypatch,
+    rule_id,
+    evidence,
+):
+    mock_enrichment(monkeypatch)
+    monkeypatch.setattr(main, "predict_scam_probability", lambda text: 0.0)
+
+    def mock_rules(text):
+        return 0, [
+            triggered(
+                rule_id,
+                "High-severity indicator",
+                evidence,
+            )
+        ]
+
+    monkeypatch.setattr(main, "analyze_rules", mock_rules)
+
+    response = client.post(
+        "/analyze",
+        json={"text": "Test posting", "save_report": False},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["final_score"] == 0.0
+    assert data["risk_level"] == "High"
+    assert len(data["critical_warnings"]) == 1
+    assert data["critical_warnings"][0]["code"] == rule_id
+    assert data["critical_warnings"][0]["evidence"] == evidence
 
 
 @pytest.mark.parametrize(

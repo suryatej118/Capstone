@@ -24,10 +24,10 @@ def mock_enrichment(monkeypatch):
     monkeypatch.setattr(main, "extract_github_org", lambda text: None)
 
 
-def test_r01_payment_request_uses_hybrid_score_risk_band(
+def test_r01_payment_request_elevates_risk_to_high(
     monkeypatch,
 ):
-    """R01 is evidence for the hybrid score, not a separate risk policy."""
+    """R01 elevates classification without changing the hybrid score."""
     mock_enrichment(monkeypatch)
     monkeypatch.setattr(
         main,
@@ -56,7 +56,7 @@ def test_r01_payment_request_uses_hybrid_score_risk_band(
     data = response.json()
 
     assert data["final_score"] < 35
-    assert data["risk_level"] == "Low"
+    assert data["risk_level"] == "High"
     assert "R01" in {reason["rule_id"] for reason in data["reasons"]}
     assert data["critical_warnings"][0]["code"] == "R01"
     assert "₹1,499" in data["critical_warnings"][0]["evidence"]
@@ -87,7 +87,7 @@ def test_non_r01_low_risk_listing_keeps_standard_risk_band(monkeypatch):
 
 
 def test_r01_does_not_change_calculated_final_score(monkeypatch):
-    """R01 contributes through rules while classification follows the score."""
+    """R01 elevates classification while leaving the final score unchanged."""
     mock_enrichment(monkeypatch)
     monkeypatch.setattr(
         main,
@@ -114,7 +114,7 @@ def test_r01_does_not_change_calculated_final_score(monkeypatch):
         2,
     )
     assert data["final_score"] == expected_score
-    assert data["risk_level"] == "Low"
+    assert data["risk_level"] == "High"
 
 
 

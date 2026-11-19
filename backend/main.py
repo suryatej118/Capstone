@@ -322,12 +322,9 @@ def analyze(
     # 2. ML prediction. The predictor may return None if the model is unavailable.
     ml_probability = predict_scam_probability(request.text)
 
-    # 3. Calculate the hybrid score once, then derive risk classification
-    # from that score. This keeps the displayed label consistent with the
-    # persisted and API-reported final score.
+    # 3. Calculate the hybrid score once. Critical warnings elevate only
+    # the classification, never the numerical hybrid score.
     final_score = calculate_final_score(rule_score, ml_probability)
-    risk_level = get_risk_level(final_score)
-
 
     # 4. Build explanations and highlighted spans.
     reasons = [
@@ -350,6 +347,12 @@ def analyze(
         if rule.start >= 0 and rule.end >= 0
     ]
     critical_warnings = get_critical_warnings(triggered_rules)
+    normal_risk_level = get_risk_level(final_score)
+    risk_level = (
+        "High"
+        if critical_warnings
+        else normal_risk_level
+    )
 
     # 5. Prepare optional enrichment signals. Individual failures must not
     # prevent the core analysis from returning a response.
