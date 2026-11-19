@@ -1,4 +1,4 @@
-"""End-to-end interpretation regression tests for Hiring Intent scoring.
+﻿"""End-to-end interpretation regression tests for Hiring Intent scoring.
 
 These tests exercise the public compute_hiring_intent function and verify that
 missing evidence is not treated as a scam penalty, positive evidence adds the
@@ -45,14 +45,14 @@ def test_confirmed_opencorporates_match_adds_expected_points():
 
     oc_reason = _reason_for(reasons, "opencorporates_match")
 
-    assert oc_reason["score"] == 0
-    assert oc_reason["confidence"] == 80
-    assert score == 0
+    assert oc_reason["score"] == 15
+    assert oc_reason["confidence"] == 95
+    assert score == 15
 
 
 def test_explicit_payment_request_applies_configured_negative_penalty():
     _, reasons = compute_hiring_intent(
-        "Please pay ₹500 as a registration fee to apply.",
+        "Please pay \u20b9500 as a registration fee to apply.",
         {},
     )
 
@@ -101,13 +101,13 @@ def test_all_positive_signals_reach_maximum_without_exceeding_100():
         },
     )
 
-    assert score == 85
+    assert score == 100
     assert 0 <= score <= 100
     assert sum(
         reason["score"]
         for reason in reasons
         if reason["signal"] != "negative_penalty"
-    ) == 85
+    ) == 100
 
 
 def test_missing_evidence_does_not_reduce_score_with_an_extra_penalty():
@@ -125,3 +125,17 @@ def test_missing_evidence_does_not_reduce_score_with_an_extra_penalty():
     assert score == 0
     assert _reason_for(reasons, "negative_penalty")["score"] == 0
     assert 0 <= score <= 100
+
+def test_fuzzy_opencorporates_match_does_not_add_points():
+    score, reasons = compute_hiring_intent(
+        "We are hiring",
+        {"opencorporates_match": None},
+    )
+
+    oc_reason = next(
+        item for item in reasons
+        if item["signal"] == "opencorporates_match"
+    )
+
+    assert oc_reason["score"] == 0
+    assert score == 0

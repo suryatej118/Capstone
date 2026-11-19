@@ -180,9 +180,6 @@ def _score_github_activity(
     return min(score, WEIGHTS["github_org_activity"])
 
 
-
-
-
 def _detect_payment_request(text: str) -> bool:
     """
     Detect an explicit recruitment-related payment demand.
@@ -369,28 +366,39 @@ def compute_hiring_intent(
     # -----------------------------------------------------------------------
 
     opencorporates_match = signals.get("opencorporates_match")
+    opencorporates_match_type = signals.get(
+        "opencorporates_match_type"
+    )
 
-    # A registry name match establishes neither recruiter identity
-    # nor authorization to advertise a job.
-    oc_score = 0
-
+    # Only an exact company-name match receives positive points.
+    # Fuzzy matches are supporting evidence, not confirmed identity.
     if opencorporates_match is True:
-        oc_confidence = 80
+        oc_score = WEIGHTS["opencorporates_match"]
+        oc_confidence = 95
     elif opencorporates_match is False:
+        oc_score = 0
         oc_confidence = 65
     else:
-        # Pending or unavailable lookup: evidence is unknown.
         oc_score = 0
         oc_confidence = 40
 
+    # Keep the explanation status separate from the boolean scoring signal.
+    oc_display_value = (
+        opencorporates_match_type
+        if opencorporates_match is None
+        else opencorporates_match
+    )
+
     reasons.append({
         "signal": "opencorporates_match",
-        "value": opencorporates_match,
+        "value": oc_display_value,
         "score": oc_score,
         "confidence": oc_confidence,
     })
 
     positive_score += oc_score
+
+
 
     # -----------------------------------------------------------------------
     # 5. Active job postings
